@@ -95,7 +95,7 @@ async function basicUsageExample() {
     const health = await app.healthCheck();
     console.log(`システム状態: ${health.status}`);
     Object.entries(health.components).forEach(([component, status]) => {
-      console.log(`  - ${component}: ${status === 'ok' ? '✅' OK' : '❌ エラー'}`);
+      console.log(`  - ${component}: ${status === 'ok' ? '✅ OK' : '❌ エラー'}`);
     });
 
     // フレームワークを終了

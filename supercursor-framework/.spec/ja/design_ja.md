@@ -40,6 +40,8 @@ graph TB
         Security[セキュリティスペシャリスト]
         Performance[パフォーマンスエキスパート]
         QA[QAエンジニア]
+        DatabaseExpert[データベースエキスパート]
+        TechWriter[テクニカルライター]
     end
     
     subgraph "統合層"
@@ -75,6 +77,8 @@ graph TB
     PersonaManager --> Security
     PersonaManager --> Performance
     PersonaManager --> QA
+    PersonaManager --> DatabaseExpert
+    PersonaManager --> TechWriter
     
     Implement --> CursorAPI
     Analyze --> CursorAPI

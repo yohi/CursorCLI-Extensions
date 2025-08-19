@@ -233,7 +233,7 @@ export class ContextAnalyzer {
     for (const file of sourceFiles) {
       try {
         const content = await readFile(file.path, 'utf8');
-        const lines = content.split('\\n').length;
+        const lines = content.split(/\r?\n/).length;
         totalLines += lines;
 
         // 簡易的な品質チェック
@@ -601,7 +601,7 @@ export class ContextAnalyzer {
 
   private extractPythonDependencies(requirementsContent: string): Dependency[] {
     const dependencies: Dependency[] = [];
-    const lines = requirementsContent.split('\\n');
+    const lines = requirementsContent.split(/\r?\n/);
     
     for (const line of lines) {
       const trimmed = line.trim();
@@ -683,7 +683,7 @@ export class ContextAnalyzer {
     const issues: Issue[] = [];
     
     // 簡易的な品質チェック
-    const lines = content.split('\\n');
+    const lines = content.split(/\r?\n/);
     
     // 長すぎる行をチェック
     lines.forEach((line, index) => {

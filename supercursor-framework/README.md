@@ -103,5 +103,5 @@ MIT License - 詳細は[LICENSE](LICENSE)ファイルをご覧ください。
 
 ## サポート
 
-- GitHub Issues: [Issues](https://github.com/SuperClaude-Org/SuperCursor_Framework/issues)
-- ドキュメント: [Documentation](https://superclaude-org.github.io/)
+- GitHub Issues: [Issues](https://github.com/yohi/CursorCLI-Extensions/issues)
+- ドキュメント: [Documentation](./docs/)

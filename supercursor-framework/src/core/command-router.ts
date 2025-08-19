@@ -217,15 +217,15 @@ export class CommandRouter {
     }
 
     const commands = this.getAvailableCommands();
-    let help = 'SuperCursor Framework - 利用可能なコマンド:\\n\\n';
+    let help = 'SuperCursor Framework - 利用可能なコマンド:\n\n';
     
     for (const command of commands) {
-      help += `/${command.type}:\\n`;
-      help += `  ${command.description}\\n`;
+      help += `/${command.type}:\n`;
+      help += `  ${command.description}\n`;
       if (command.examples.length > 0) {
-        help += `  例: ${command.examples[0].command}\\n`;
+        help += `  例: ${command.examples[0].command}\n`;
       }
-      help += '\\n';
+      help += '\n';
     }
     
     return help;
@@ -262,7 +262,13 @@ export class CommandRouter {
       throw new CommandError(`無効なコマンド形式です: ${command}`);
     }
 
-    return match[1].replace('-', '') as CommandType;
+    // ハイフン区切りをキャメルケースに変換
+    const commandStr = match[1];
+    const parts = commandStr.split('-');
+    const camelCase = parts[0].toLowerCase() + 
+      parts.slice(1).map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join('');
+    
+    return camelCase as CommandType;
   }
 
   /**
@@ -306,36 +312,36 @@ export class CommandRouter {
    * コマンドヘルプをフォーマット
    */
   private formatCommandHelp(command: Command): string {
-    let help = `/${command.type} - ${command.description}\\n\\n`;
+    let help = `/${command.type} - ${command.description}\n\n`;
     
     if (command.arguments.length > 0) {
-      help += '引数:\\n';
+      help += '引数:\n';
       for (const arg of command.arguments) {
         const required = arg.required ? '[必須]' : '[任意]';
-        help += `  ${arg.name} (${arg.type}) ${required} - ${arg.description}\\n`;
+        help += `  ${arg.name} (${arg.type}) ${required} - ${arg.description}\n`;
       }
-      help += '\\n';
+      help += '\n';
     }
 
     if (command.options.length > 0) {
-      help += 'オプション:\\n';
+      help += 'オプション:\n';
       for (const option of command.options) {
         const alias = option.alias ? ` (-${option.alias})` : '';
         const defaultValue = option.defaultValue !== undefined ? ` [デフォルト: ${option.defaultValue}]` : '';
-        help += `  --${option.name}${alias} (${option.type})${defaultValue} - ${option.description}\\n`;
+        help += `  --${option.name}${alias} (${option.type})${defaultValue} - ${option.description}\n`;
       }
-      help += '\\n';
+      help += '\n';
     }
 
     if (command.examples.length > 0) {
-      help += '使用例:\\n';
+      help += '使用例:\n';
       for (const example of command.examples) {
-        help += `  ${example.command}\\n`;
-        help += `    ${example.description}\\n`;
+        help += `  ${example.command}\n`;
+        help += `    ${example.description}\n`;
         if (example.output) {
-          help += `    出力: ${example.output}\\n`;
+          help += `    出力: ${example.output}\n`;
         }
-        help += '\\n';
+        help += '\n';
       }
     }
 

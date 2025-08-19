@@ -23,6 +23,7 @@ export class SuperCursorFramework {
   private commandRouter!: CommandRouter;
   private contextAnalyzer!: ContextAnalyzer;
   private initialized = false;
+  private startTime = 0;
 
   constructor(private options: FrameworkInitOptions = {}) {
     this.options = {
@@ -96,6 +97,7 @@ export class SuperCursorFramework {
       });
 
       this.initialized = true;
+      this.startTime = Date.now();
       this.logger.info('SuperCursor Frameworkの初期化が完了しました', {
         version: frameworkConfig.version,
         cacheEnabled: this.options.enableCaching,
@@ -188,13 +190,11 @@ export class SuperCursorFramework {
     config: FrameworkConfig | null;
     uptime: number;
   } {
-    const startTime = Date.now();
-    
     return {
       initialized: this.initialized,
       version: this.initialized ? this.config.getConfig().version : 'unknown',
       config: this.initialized ? this.config.getConfig() : null,
-      uptime: this.initialized ? Date.now() - startTime : 0,
+      uptime: this.initialized ? Date.now() - this.startTime : 0,
     };
   }
 

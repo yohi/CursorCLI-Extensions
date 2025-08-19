@@ -299,9 +299,20 @@ export class FileCacheAdapter<T = any> extends CacheAdapter<T> {
   }
 
   public async keys(): Promise<string[]> {
-    // 実装の簡略化のため、ファイル一覧を取得
-    // 実際の実装では、より効率的な方法を考慮する必要があります
-    return [];
+    try {
+      const fs = await import('fs/promises');
+      if (!existsSync(this.cacheDir)) {
+        return [];
+      }
+      
+      const files = await fs.readdir(this.cacheDir);
+      return files
+        .filter(file => file.endsWith('.json'))
+        .map(file => file.replace('.json', ''));
+    } catch (error) {
+      this.logger.error('Failed to read cache directory:', error);
+      return [];
+    }
   }
 
   public async has(key: string): Promise<boolean> {
@@ -384,7 +395,23 @@ export class CacheManager {
   }
 
   public async invalidate(pattern: string): Promise<void> {
-    const regex = new RegExp(pattern);
+    // 安全性のためにパターンの長さを制限
+    if (pattern.length > 100) {
+      this.logger.warn('Pattern too long, truncating to 100 characters');
+      pattern = pattern.substring(0, 100);
+    }
+
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern);
+    } catch (error) {
+      this.logger.error('Invalid regex pattern, using escaped literal match:', error);
+      // エスケープしてリテラル文字列として扱う
+      const escapeRegex = (str: string): string => {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      };
+      regex = new RegExp(escapeRegex(pattern));
+    }
     
     for (const provider of this.config.providers) {
       const adapter = this.adapters.get(provider);

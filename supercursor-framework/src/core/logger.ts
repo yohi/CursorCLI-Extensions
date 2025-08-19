@@ -244,17 +244,18 @@ export class Logger {
       return;
     }
 
+    let savedEntries: LogEntry[] = [];
     try {
-      const logEntries = this.logBuffer.splice(0, this.logBuffer.length);
-      const logLines = logEntries.map(entry => this.formatLogEntryForFile(entry));
-      const logContent = logLines.join('\\n') + '\\n';
+      savedEntries = this.logBuffer.splice(0, this.logBuffer.length);
+      const logLines = savedEntries.map(entry => this.formatLogEntryForFile(entry));
+      const logContent = logLines.join('\n') + '\n';
 
       // ファイルに追記
       await writeFile(this.config.filePath, logContent, { flag: 'a', encoding: 'utf8' });
     } catch (error) {
       console.error('ログファイルの書き込みに失敗しました:', error);
       // ログエントリを戻す（次回のフラッシュで再試行）
-      this.logBuffer.unshift(...this.logBuffer);
+      this.logBuffer.unshift(...savedEntries);
     }
   }
 
