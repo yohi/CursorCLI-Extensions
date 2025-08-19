@@ -2,7 +2,7 @@
 
 ## Overview
 
-The SuperClaude-Cursor Framework is a comprehensive extension system that enhances Cursor CLI with specialized development commands, intelligent AI personas, and advanced automation capabilities. The framework follows a modular architecture that integrates seamlessly with Cursor's existing infrastructure while providing powerful new functionality for modern development workflows.
+The SuperCursor Framework is a comprehensive extension system that enhances Cursor CLI with specialized development commands, intelligent AI personas, and advanced automation capabilities. The framework follows a modular architecture that integrates seamlessly with Cursor's existing infrastructure while providing powerful new functionality for modern development workflows.
 
 ## Architecture
 
