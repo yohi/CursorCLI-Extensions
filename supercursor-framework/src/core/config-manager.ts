@@ -207,6 +207,11 @@ export class ConfigManager {
       version: Joi.string().required(),
       logLevel: Joi.string().valid('error', 'warn', 'info', 'debug', 'verbose').required(),
       outputFormat: Joi.string().valid('text', 'json', 'stream-json').required(),
+      workingDirectory: Joi.string().optional(),
+      enableCaching: Joi.boolean().optional(),
+      cacheTimeout: Joi.number().integer().min(0).optional(),
+      maxHistorySize: Joi.number().integer().min(0).optional(),
+      enableValidation: Joi.boolean().optional(),
       cache: Joi.object({
         providers: Joi.array().items(Joi.string().valid('memory', 'file', 'redis')).required(),
         defaultTTL: Joi.number().integer().positive().required(),
@@ -259,6 +264,8 @@ export class ConfigManager {
             }).required(),
           })
         ).required(),
+        enableAutoSelection: Joi.boolean().optional(),
+        enableLearning: Joi.boolean().optional(),
       }).required(),
     });
 

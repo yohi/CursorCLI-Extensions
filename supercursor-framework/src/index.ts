@@ -138,4 +138,4 @@ export function createCommandContext(
 }
 
 // デフォルトエクスポート
-export default SuperCursorApp;
+export { SuperCursorApp as default } from './supercursor-app';

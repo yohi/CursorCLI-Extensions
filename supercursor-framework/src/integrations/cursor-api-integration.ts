@@ -48,48 +48,86 @@ export class CursorAPIIntegration implements CursorIntegration {
     const startTime = Date.now();
     const logger = getLogger();
     
-    try {
-      logger.debug('Cursorコマンドを実行中', { command, options });
+    const timeout = options.timeout || this.config.timeout;
+    const maxRetries = this.config.retryAttempts;
+    let lastError: Error | null = null;
 
-      const timeout = options.timeout || this.config.timeout;
-      const result = await this.runCursorCommand(command, timeout);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        logger.debug('Cursorコマンドを実行中', { command, options, attempt, maxRetries });
 
-      const executionTime = Date.now() - startTime;
-      
-      logger.info('Cursorコマンドの実行が完了', { 
-        command, 
-        success: result.success, 
-        executionTime 
-      });
+        const result = await this.runCursorCommand(command, timeout);
 
-      return {
-        success: result.success,
-        output: result.output,
-        error: result.error,
-        metadata: {
-          executionTime,
-          tokensUsed: this.estimateTokenUsage(command, result.output),
-          model: 'cursor-cli',
-        },
-      };
+        if (result.success) {
+          const executionTime = Date.now() - startTime;
+          
+          logger.info('Cursorコマンドの実行が完了', { 
+            command, 
+            success: result.success, 
+            executionTime,
+            attempt 
+          });
 
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+          return {
+            success: result.success,
+            output: result.output,
+            error: result.error,
+            metadata: {
+              executionTime,
+              tokensUsed: this.estimateTokenUsage(command, result.output),
+              model: 'cursor-cli',
+            },
+          };
+        } else {
+          // コマンドは実行されたが失敗した場合、リトライせずに即座に結果を返す
+          const executionTime = Date.now() - startTime;
+          return {
+            success: false,
+            output: result.output,
+            error: result.error,
+            metadata: {
+              executionTime,
+              tokensUsed: 0,
+              model: 'cursor-cli',
+            },
+          };
+        }
 
-      logger.error('Cursorコマンドの実行に失敗', { command, error: errorMessage });
-
-      return {
-        success: false,
-        output: '',
-        error: errorMessage,
-        metadata: {
-          executionTime,
-          tokensUsed: 0,
-          model: 'cursor-cli',
-        },
-      };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        if (attempt < maxRetries) {
+          const baseDelay = 300; // 300ms
+          const delay = baseDelay * Math.pow(2, attempt);
+          logger.warn('Cursorコマンドが失敗しました。リトライします', { 
+            command, 
+            attempt: attempt + 1, 
+            maxRetries: maxRetries + 1,
+            delay,
+            error: lastError.message 
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
+
+    // 全てのリトライが失敗した場合
+    const executionTime = Date.now() - startTime;
+    const errorMessage = lastError?.message || 'Unknown error';
+
+    logger.error('Cursorコマンドの実行に失敗（リトライ終了）', { command, error: errorMessage });
+
+    return {
+      success: false,
+      output: '',
+      error: errorMessage,
+      metadata: {
+        executionTime,
+        tokensUsed: 0,
+        model: 'cursor-cli',
+      },
+    };
   }
 
   /**
@@ -202,7 +240,7 @@ export class CursorAPIIntegration implements CursorIntegration {
 
       // grep または ripgrepを使用した検索
       const searchCommand = await this.buildSearchCommand(query, scope);
-      const result = await this.runCursorCommand(searchCommand, this.config.timeout);
+      const result = await this.runShellCommand(searchCommand, this.config.timeout);
 
       if (!result.success) {
         logger.warn('検索コマンドが失敗', { query, error: result.error });
@@ -308,6 +346,63 @@ export class CursorAPIIntegration implements CursorIntegration {
       childProcess.on('error', (error) => {
         clearTimeout(timeoutId);
         reject(new IntegrationError(`コマンド実行エラー: ${error.message}`));
+      });
+    });
+  }
+
+  /**
+   * シェルコマンドを実行
+   */
+  private async runShellCommand(
+    command: string, 
+    timeout: number
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    return new Promise((resolve, reject) => {
+      const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+      const shellArgs = process.platform === 'win32' ? ['/c'] : ['-c'];
+      
+      const childProcess = spawn(shell, [...shellArgs, command], {
+        cwd: this.config.workingDirectory,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      } as SpawnOptionsWithoutStdio);
+
+      let stdout = '';
+      let stderr = '';
+
+      // タイムアウト設定
+      const timeoutId = setTimeout(() => {
+        childProcess.kill();
+        reject(new TimeoutError(`シェルコマンドがタイムアウトしました: ${command}`));
+      }, timeout);
+
+      childProcess.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      childProcess.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      childProcess.on('close', (code) => {
+        clearTimeout(timeoutId);
+        
+        if (code === 0) {
+          resolve({
+            success: true,
+            output: stdout,
+          });
+        } else {
+          resolve({
+            success: false,
+            output: stdout,
+            error: stderr || `シェルコマンドが終了コード ${code} で終了しました`,
+          });
+        }
+      });
+
+      childProcess.on('error', (error) => {
+        clearTimeout(timeoutId);
+        reject(new IntegrationError(`シェルコマンド実行エラー: ${error.message}`));
       });
     });
   }
