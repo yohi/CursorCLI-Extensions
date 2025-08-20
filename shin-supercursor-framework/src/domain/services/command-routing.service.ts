@@ -287,9 +287,21 @@ export class CommandRoutingService implements CommandRouter {
     let current = '';
     let inQuotes = false;
     let quoteChar = '';
+    let escapeNext = false;
 
     for (let i = 0; i < input.length; i++) {
       const char = input[i];
+      
+      if (escapeNext) {
+        current += char;
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\' && inQuotes) {
+        escapeNext = true;
+        continue;
+      }
       
       if (!inQuotes && (char === '"' || char === "'")) {
         inQuotes = true;
@@ -305,6 +317,11 @@ export class CommandRoutingService implements CommandRouter {
       } else {
         current += char;
       }
+    }
+
+    // 閉じられていない引用符の検証
+    if (inQuotes) {
+      throw new ValidationError(`閉じられていない引用符があります: ${quoteChar}`);
     }
 
     if (current.trim()) {
