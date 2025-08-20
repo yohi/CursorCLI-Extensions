@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    // ベース設定 - モダンなNode.js ES modules対応
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+
+    // ES module互換性
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+
+    // 型安全性
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // コード品質
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // 出力設定
+    "declaration": true,
+    "sourceMap": true,
+    "removeComments": false,
+
+    // JSON module support
+    "resolveJsonModule": true,
+    "allowJs": false
+  },
+  
+  // プロジェクト構成参照
+  "references": [
+    {
+      "path": "./shin-supercursor-framework"
+    }
+  ],
+  
+  "files": [],
+  
+  "include": [],
+  
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "**/coverage"
+  ]
+}

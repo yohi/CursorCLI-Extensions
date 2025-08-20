@@ -1,47 +1,23 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    // ターゲット設定
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ESNext",
-    "moduleResolution": "node",
-
-    // モジュール互換性
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
+    // NestJS固有設定
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
 
-    // 型安全性最大化 (Framework-1レベル)
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
+    // 厳格な型安全性（Framework-1レベル）
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
-
-    // コード品質向上
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "noImplicitThis": true,
     "noPropertyAccessFromIndexSignature": true,
 
-    // パフォーマンス最適化
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    // プロジェクト固有設定
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-
-    // 出力設定
     "outDir": "./dist",
     "rootDir": "./src",
-    "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": false,
 
     // パス解決
     "baseUrl": "./",
