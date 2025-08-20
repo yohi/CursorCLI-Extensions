@@ -309,7 +309,10 @@ export class PersonaManagerImpl implements PersonaManager {
     if (persona.id) {
       await this.personaRepository.update(persona.id, persona);
     } else {
-      await this.personaRepository.create(persona as Omit<AIPersona, 'id' | 'createdAt' | 'updatedAt'>);
+      // IDがない場合は新規作成用のデータを準備
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, createdAt, updatedAt, ...personaData } = persona;
+      await this.personaRepository.create(personaData);
     }
   }
 
