@@ -47,10 +47,10 @@ import type {
   UserId as UserIdType,
   ProjectId as ProjectIdType,
   Timestamp as TimestampType,
-  DeepReadonly,
-  Optional,
-  NonEmptyArray,
-  Result
+  DeepReadonly as DeepReadonlyType,
+  Optional as OptionalType,
+  NonEmptyArray as NonEmptyArrayType,
+  Result as ResultType
 } from './base.js';
 
 // Import error classes for runtime access
@@ -85,8 +85,11 @@ export namespace SuperCursor {
   export type ProjectId = ProjectIdType;
   export type Timestamp = TimestampType;
 
-  // ユーティリティ型 - re-export the types
-  export type { DeepReadonly, Optional, NonEmptyArray, Result };
+  // ユーティリティ型
+  export type DeepReadonly<T> = DeepReadonlyType<T>;
+  export type Optional<T, K extends keyof T> = OptionalType<T, K>;
+  export type NonEmptyArray<T> = NonEmptyArrayType<T>;
+  export type Result<T, E = Error> = ResultType<T, E>;
 }
 
 // Export error classes under namespace
