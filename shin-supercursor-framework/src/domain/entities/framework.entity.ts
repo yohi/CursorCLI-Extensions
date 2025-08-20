@@ -19,6 +19,8 @@ import {
   BaseEntity
 } from '../types/index.js';
 
+import { randomUUID } from 'node:crypto';
+
 import {
   Command,
   CommandResult,
@@ -503,10 +505,25 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private async initializeDependencies(): Promise<void> {
-    // 依存コンポーネントの初期化（実装待ち）
-    // this._commandRouter = new CommandRouterImpl();
-    // this._commandEngine = new CommandExecutionEngineImpl();
-    // this._personaManager = new PersonaManagerImpl();
+    try {
+      // TODO: 具体的な実装クラスが利用可能になったら置き換える
+      // 現在は仮の実装で初期化（実際の実装では具体的なクラスを使用）
+      
+      // CommandRouter の初期化
+      // this._commandRouter = new CommandRouterImpl(logger, config);
+      
+      // CommandExecutionEngine の初期化  
+      // this._commandEngine = new CommandExecutionEngineImpl(logger, config, this);
+      
+      // PersonaManager の初期化
+      // this._personaManager = new PersonaManagerImpl(logger, config, personaRepository, this);
+      
+      // 現在は初期化をスキップ（具体的な実装が必要）
+      console.warn('依存コンポーネントの初期化がスキップされました。具体的な実装クラスが必要です。');
+      
+    } catch (error) {
+      throw new ConfigurationError(`依存コンポーネントの初期化に失敗しました: ${error.message}`);
+    }
   }
 
   private async validateConfiguration(): Promise<void> {
@@ -605,16 +622,20 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private updateStatistics(command: Command, result: CommandResult, duration: number): void {
+    const prevCount = this._statistics.commandsExecuted;
+    const newCount = prevCount + 1;
+    const prevSuccesses = this._statistics.successRate * prevCount;
+    const prevErrors = this._statistics.errorRate * prevCount;
+    
+    const newSuccesses = prevSuccesses + (result.success ? 1 : 0);
+    const newErrors = prevErrors + (result.success ? 0 : 1);
+    
     this._statistics = {
       ...this._statistics,
-      commandsExecuted: this._statistics.commandsExecuted + 1,
-      averageExecutionTime: (this._statistics.averageExecutionTime + duration) / 2,
-      successRate: result.success ? 
-        (this._statistics.successRate + 1) / this._statistics.commandsExecuted : 
-        this._statistics.successRate,
-      errorRate: !result.success ? 
-        (this._statistics.errorRate + 1) / this._statistics.commandsExecuted : 
-        this._statistics.errorRate
+      commandsExecuted: newCount,
+      averageExecutionTime: (this._statistics.averageExecutionTime * prevCount + duration) / newCount,
+      successRate: newSuccesses / newCount,
+      errorRate: newErrors / newCount
     };
   }
 
@@ -624,14 +645,22 @@ export class FrameworkEntity extends BaseEntity {
     }
   }
 
+  /**
+   * 暗号学的に安全なID生成ユーティリティ
+   * @param prefix IDのプレフィックス
+   * @returns プレフィックス付きのUUID
+   */
+  private generatePrefixedId(prefix: string): string {
+    const uuid = randomUUID();
+    return `${prefix}_${uuid}`;
+  }
+
   private generateCommandId(): CommandId {
-    const randomBytes = Math.random().toString(36).substring(2, 18);
-    return `cmd_${randomBytes}` as CommandId;
+    return this.generatePrefixedId('cmd') as CommandId;
   }
 
   private generateSessionId(): SessionId {
-    const randomBytes = Math.random().toString(36).substring(2, 22);
-    return `session_${randomBytes}` as SessionId;
+    return this.generatePrefixedId('session') as SessionId;
   }
 
   private emitEvent(eventData: {

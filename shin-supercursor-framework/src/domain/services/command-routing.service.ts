@@ -6,9 +6,11 @@
 import {
   CommandId,
   PersonaId,
+  Timestamp,
   FrameworkError,
   ValidationError,
-  CommandExecutionError
+  CommandExecutionError,
+  createCommandId
 } from '../types/index.js';
 
 import {
@@ -75,7 +77,7 @@ export class CommandRoutingService implements CommandRouter {
       const parseMetadata = {
         parser: 'CommandRoutingService',
         version: '1.0.0',
-        timestamp: Date.now() as any,
+        timestamp: Date.now() as Timestamp,
         confidence: this.calculateParseConfidence(resolvedName, args, options),
         alternatives: await this.generateAlternatives(resolvedName, args)
       };
@@ -196,7 +198,7 @@ export class CommandRoutingService implements CommandRouter {
       const executionTime = Date.now() - startTime;
       
       return {
-        commandId: '' as CommandId, // 実際の実装では適切なIDを設定
+        commandId: createCommandId(),
         success: false,
         output: { data: null },
         format: 'text',
@@ -212,8 +214,8 @@ export class CommandRoutingService implements CommandRouter {
         },
         errors: [error instanceof FrameworkError ? error : new CommandExecutionError(error.message)],
         performance: {
-          startTime: startTime as any,
-          endTime: Date.now() as any,
+          startTime: startTime as Timestamp,
+          endTime: Date.now() as Timestamp,
           duration: executionTime
         }
       };
@@ -401,7 +403,7 @@ export class CommandRoutingService implements CommandRouter {
           parseMetadata: {
             parser: 'AlternativeGenerator',
             version: '1.0.0',
-            timestamp: Date.now() as any,
+            timestamp: Date.now() as Timestamp,
             confidence: this.calculateSimilarity(name, handlerName)
           }
         });
@@ -574,8 +576,8 @@ export class CommandRoutingService implements CommandRouter {
         ...result,
         commandId: command.id,
         performance: {
-          startTime: startTime as any,
-          endTime: Date.now() as any,
+          startTime: startTime as Timestamp,
+          endTime: Date.now() as Timestamp,
           duration: Date.now() - startTime
         }
       };
@@ -602,7 +604,6 @@ export class CommandRoutingService implements CommandRouter {
   }
 
   private generateCommandId(): CommandId {
-    const randomBytes = Math.random().toString(36).substring(2, 18);
-    return `cmd_${randomBytes}` as CommandId;
+    return createCommandId();
   }
 }

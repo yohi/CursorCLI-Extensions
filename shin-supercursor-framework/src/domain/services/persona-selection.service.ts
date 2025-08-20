@@ -452,9 +452,35 @@ export class PersonaSelectionService {
 
   // ヘルパーメソッド群
   private async getPersonasByProjectType(projectType: string): Promise<AIPersona[]> {
-    // プロジェクトタイプに基づいてペルソナを検索
+    if (!projectType) {
+      return [];
+    }
+
+    // 大文字小文字を無視してプロジェクトタイプに基づいてペルソナを検索
     const allPersonas = await this.personaRepository.findAllActive();
-    return allPersonas; // 実装を簡略化
+    
+    return allPersonas.filter(persona => {
+      // ペルソナがプロジェクトタイプをサポートしているかチェック
+      // ここでは activationTriggers の中で PROJECT_TYPE トリガーを持つペルソナを検索
+      const projectTypeTriggers = persona.activationTriggers.filter(trigger => 
+        trigger.type === 'project_type'
+      );
+      
+      if (projectTypeTriggers.length === 0) {
+        // プロジェクトタイプトリガーがない場合は汎用ペルソナとして扱う
+        return true;
+      }
+      
+      // プロジェクトタイプが一致するかチェック（大文字小文字を無視）
+      return projectTypeTriggers.some(trigger => {
+        if (typeof trigger.pattern === 'string') {
+          return trigger.pattern.toLowerCase() === projectType.toLowerCase();
+        } else if (trigger.pattern instanceof RegExp) {
+          return trigger.pattern.test(projectType);
+        }
+        return false;
+      });
+    });
   }
 
   private getExpertiseLevelScore(level: ExpertiseLevel): number {
