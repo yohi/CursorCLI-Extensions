@@ -1,6 +1,18 @@
 {
-  "extends": "../tsconfig.json",
   "compilerOptions": {
+    // ベース設定 - ES modules対応
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext", 
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    
+    // 基本設定
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     // NestJS固有設定
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -12,12 +24,14 @@
     "noImplicitThis": true,
     "noPropertyAccessFromIndexSignature": true,
 
-    // プロジェクト固有設定
-    "incremental": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    // 出力設定
+    "declaration": true,
+    "declarationMap": true, 
+    "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "declarationMap": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
 
     // パス解決
     "baseUrl": "./",
