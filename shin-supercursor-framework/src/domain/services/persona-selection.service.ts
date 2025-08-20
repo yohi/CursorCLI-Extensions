@@ -136,10 +136,11 @@ export class PersonaSelectionService {
       };
 
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
       return {
         success: false,
         confidence: 0,
-        reasoning: `ペルソナ選択エラー: ${error.message}`,
+        reasoning: `ペルソナ選択エラー: ${msg}`,
         alternatives: [],
         selectionTime: Date.now() - startTime
       };
