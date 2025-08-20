@@ -27,7 +27,8 @@ import {
   ExecutionContext,
   CommandHandler,
   CommandRouter,
-  CommandExecutionEngine
+  CommandExecutionEngine,
+  ParsedCommand
 } from '../types/commands.js';
 
 import {
@@ -273,7 +274,7 @@ export class FrameworkEntity extends BaseEntity {
       
       this.emitEvent({
         type: FrameworkEventType.ERROR_OCCURRED,
-        data: { error: frameworkError.toJSON() }
+        data: { error: frameworkError }
       });
       
       throw frameworkError;
@@ -297,22 +298,27 @@ export class FrameworkEntity extends BaseEntity {
     try {
       this._state = FrameworkState.RUNNING;
 
+      // Check dependencies are initialized
+      if (!this._commandRouter) {
+        throw new ConfigurationError('CommandRouter が初期化されていません');
+      }
+      if (!this._commandEngine) {
+        throw new ConfigurationError('CommandExecutionEngine が初期化されていません');
+      }
+
       // 1. コマンド解析
-      const parsedCommand = await this._commandRouter!.parseCommand(input);
+      const parsedCommand = await this._commandRouter.parseCommand(input);
       
       // 2. バリデーション
-      const validationResult = await this._commandRouter!.validateCommand(parsedCommand);
+      const validationResult = await this._commandRouter.validateCommand(parsedCommand);
       if (!validationResult.valid) {
         throw new ValidationError(
           `コマンドの検証に失敗しました: ${validationResult.errors.map(e => e.message).join(', ')}`
         );
       }
 
-      // 3. コマンドオブジェクト構築
-      command = this.buildCommand(parsedCommand, executionContext);
-
-      // 4. ペルソナ選択
-      const personaResult = await this.selectPersona(command, executionContext);
+      // 3. ペルソナ選択（コマンド構築前に実行し、コンテキストを更新）
+      const personaResult = await this.selectPersona(parsedCommand, executionContext);
       if (personaResult.success && personaResult.selectedPersona) {
         // ペルソナをコンテキストに追加
         executionContext = {
@@ -321,8 +327,11 @@ export class FrameworkEntity extends BaseEntity {
         };
       }
 
+      // 4. コマンドオブジェクト構築（更新されたコンテキストを使用）
+      command = this.buildCommand(parsedCommand, executionContext);
+
       // 5. コマンド実行
-      result = await this._commandEngine!.execute(command);
+      result = await this._commandEngine.execute(command);
 
       // 6. 統計更新
       this.updateStatistics(command, result, Date.now() - startTime);
@@ -358,7 +367,7 @@ export class FrameworkEntity extends BaseEntity {
       
       this.emitEvent({
         type: FrameworkEventType.ERROR_OCCURRED,
-        data: { error: frameworkError.toJSON(), command: command?.name }
+        data: { error: frameworkError, command: command?.name }
       });
 
       return result;
@@ -413,7 +422,7 @@ export class FrameworkEntity extends BaseEntity {
   // ==========================================
 
   public async selectPersona(
-    command: Command,
+    command: Command | ParsedCommand,
     context: ExecutionContext
   ): Promise<PersonaSelectionResult> {
     this.ensureReady();
@@ -506,20 +515,74 @@ export class FrameworkEntity extends BaseEntity {
 
   private async initializeDependencies(): Promise<void> {
     try {
-      // TODO: 具体的な実装クラスが利用可能になったら置き換える
-      // 現在は仮の実装で初期化（実際の実装では具体的なクラスを使用）
+      // Import implementation classes
+      const { CommandRoutingService } = await import('../services/command-routing.service.js');
+      const { CommandExecutionEngineImpl } = await import('../../infrastructure/command-execution-engine.impl.js');
+      const { PersonaManagerImpl } = await import('../../infrastructure/persona-manager.impl.js');
+      const { PersonaSelectionService } = await import('../services/persona-selection.service.js');
+
+      // Note: PersonaRepository is abstract, we'd need a concrete implementation
+      // For now, create a mock implementation
+      const mockPersonaRepository = new (class extends (await import('../repositories/persona.repository.js')).PersonaRepository {
+        async findById() { return null; }
+        async findByIds() { return []; }
+        async findByFilter() { return []; }
+        async search() { return []; }
+        async findAllActive() { return []; }
+        async findByTechnology() { return []; }
+        async findByExpertiseDomain() { return []; }
+        async findByType() { return []; }
+        async create() { throw new Error('Not implemented'); }
+        async update() { throw new Error('Not implemented'); }
+        async delete() { return false; }
+        async exists() { return false; }
+        async count() { return 0; }
+        async getStatistics() { throw new Error('Not implemented'); }
+        async saveInteraction() { }
+        async saveFeedback() { }
+        async getSessionHistory() { return []; }
+        async getUserHistory() { return []; }
+        async getPopularPersonas() { return []; }
+        async getRecommendedPersonas() { return []; }
+        async findSimilar() { return []; }
+        async createMany() { return []; }
+        async updateMany() { return []; }
+        async deleteMany() { return 0; }
+        async findArchived() { return []; }
+        async archive() { return false; }
+        async unarchive() { return false; }
+        async transaction<T>(operation: any): Promise<T> { return operation(this); }
+      })();
       
       // CommandRouter の初期化
-      // this._commandRouter = new CommandRouterImpl(logger, config);
+      this._commandRouter = new CommandRoutingService({
+        enableValidation: this._configuration.enableValidation,
+        enableCaching: this._configuration.enableCaching,
+        enableMetrics: this._configuration.performance.enableMetrics,
+        defaultTimeout: this._configuration.performance.commandTimeout,
+        maxConcurrentCommands: 10
+      });
       
       // CommandExecutionEngine の初期化  
-      // this._commandEngine = new CommandExecutionEngineImpl(logger, config, this);
+      this._commandEngine = new CommandExecutionEngineImpl(this._commandRouter, {
+        maxConcurrentExecutions: 10,
+        defaultTimeout: this._configuration.performance.commandTimeout,
+        enableMetrics: this._configuration.performance.enableMetrics,
+        enableLogging: true
+      });
       
       // PersonaManager の初期化
-      // this._personaManager = new PersonaManagerImpl(logger, config, personaRepository, this);
-      
-      // 現在は初期化をスキップ（具体的な実装が必要）
-      console.warn('依存コンポーネントの初期化がスキップされました。具体的な実装クラスが必要です。');
+      const personaSelectionService = new PersonaSelectionService(mockPersonaRepository);
+      this._personaManager = new PersonaManagerImpl(
+        mockPersonaRepository,
+        personaSelectionService,
+        {
+          enableLearning: this._configuration.personas.enableLearning,
+          enableAutoSelection: this._configuration.personas.enableAutoSelection,
+          confidenceThreshold: this._configuration.personas.confidenceThreshold,
+          maxConcurrentPersonas: this._configuration.personas.maxConcurrentPersonas
+        }
+      );
       
     } catch (error) {
       throw new ConfigurationError(`依存コンポーネントの初期化に失敗しました: ${error.message}`);
@@ -643,6 +706,33 @@ export class FrameworkEntity extends BaseEntity {
     if (!this.isReady) {
       throw new ConfigurationError(`フレームワークが準備できていません。現在の状態: ${this._state}`);
     }
+
+    // Validate mandatory dependencies
+    const missingDependencies = this.getMissingDependencies();
+    if (missingDependencies.length > 0) {
+      throw new ConfigurationError(
+        `必要な依存関係が初期化されていません: ${missingDependencies.join(', ')}`
+      );
+    }
+  }
+
+  private getMissingDependencies(): string[] {
+    const missing: string[] = [];
+
+    if (!this._commandRouter) {
+      missing.push('CommandRouter');
+    }
+    if (!this._commandEngine) {
+      missing.push('CommandExecutionEngine');
+    }
+    if (!this._personaManager) {
+      missing.push('PersonaManager');
+    }
+    if (!this._configuration) {
+      missing.push('Configuration');
+    }
+
+    return missing;
   }
 
   /**
@@ -668,7 +758,7 @@ export class FrameworkEntity extends BaseEntity {
     data: DeepReadonly<Record<string, unknown>>;
   }): void {
     const event: FrameworkEvent = {
-      id: Math.random().toString(36).substring(2, 18),
+      id: this.generatePrefixedId('event'),
       type: eventData.type,
       timestamp: Date.now() as Timestamp,
       data: eventData.data,
@@ -687,11 +777,24 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private getLastError(): FrameworkError | undefined {
-    const errorEvent = this._eventHistory
-      .reverse()
-      .find(event => event.type === FrameworkEventType.ERROR_OCCURRED);
-
-    return errorEvent?.data.error as FrameworkError | undefined;
+    // Scan from the end without mutating the array
+    for (let i = this._eventHistory.length - 1; i >= 0; i--) {
+      const event = this._eventHistory[i];
+      if (event.type === FrameworkEventType.ERROR_OCCURRED) {
+        // Check if the error data is a FrameworkError instance or JSON
+        const errorData = event.data.error;
+        if (errorData instanceof FrameworkError) {
+          return errorData;
+        }
+        // If it's JSON data, try to reconstruct the error (though this is not ideal)
+        if (typeof errorData === 'object' && errorData && 'message' in errorData) {
+          const errorObj = errorData as any;
+          return new FrameworkError(errorObj.message || 'Unknown error');
+        }
+        break;
+      }
+    }
+    return undefined;
   }
 
   private async cleanup(): Promise<void> {

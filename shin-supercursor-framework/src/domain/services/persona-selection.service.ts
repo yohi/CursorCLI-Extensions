@@ -113,12 +113,23 @@ export class PersonaSelectionService {
 
       const selectionTime = Date.now() - startTime;
 
+      // Find confidence for the selected persona
+      const selectedCandidate = scoredCandidates.find(c => 
+        c.persona.id === selectedPersona?.id
+      );
+      const selectedConfidence = selectedCandidate?.confidence || 0;
+
+      // Create alternatives list excluding the selected persona
+      const alternatives = scoredCandidates
+        .filter(c => c.persona.id !== selectedPersona?.id)
+        .slice(0, selectionConfig.maxCandidates - 1);
+
       return {
         success: finalPersona !== null,
         selectedPersona: finalPersona || undefined,
-        confidence: selectedPersona ? scoredCandidates[0]?.confidence || 0 : 0,
+        confidence: selectedPersona ? selectedConfidence : 0,
         reasoning: this.generateReasoning(selectedPersona, scoredCandidates, selectionConfig),
-        alternatives: scoredCandidates.slice(1, selectionConfig.maxCandidates),
+        alternatives,
         fallback: !selectedPersona ? finalPersona : undefined,
         selectionTime
       };
@@ -463,7 +474,7 @@ export class PersonaSelectionService {
       // ペルソナがプロジェクトタイプをサポートしているかチェック
       // ここでは activationTriggers の中で PROJECT_TYPE トリガーを持つペルソナを検索
       const projectTypeTriggers = persona.activationTriggers.filter(trigger => 
-        trigger.type === 'project_type'
+        trigger.type === TriggerType.PROJECT_TYPE
       );
       
       if (projectTypeTriggers.length === 0) {
