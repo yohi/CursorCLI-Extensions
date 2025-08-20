@@ -14,6 +14,8 @@ import {
   ConfigurationError,
   ValidationError,
   CommandExecutionError,
+  PersonaSelectionError,
+  SecurityError,
   LogLevel,
   DeepReadonly,
   BaseEntity
@@ -760,7 +762,22 @@ export class FrameworkEntity extends BaseEntity {
         // If it's JSON data, try to reconstruct the error (though this is not ideal)
         if (typeof errorData === 'object' && errorData && 'message' in errorData) {
           const errorObj = errorData as any;
-          return new FrameworkError(errorObj.message || 'Unknown error');
+          // エラータイプに応じて適切なインスタンスを作成
+          const errorMessage = errorObj.message || 'Unknown error';
+          switch (errorObj.type || errorObj.name) {
+            case 'ConfigurationError':
+              return new ConfigurationError(errorMessage);
+            case 'ValidationError':
+              return new ValidationError(errorMessage);
+            case 'CommandExecutionError':
+              return new CommandExecutionError(errorMessage);
+            case 'PersonaSelectionError':
+              return new PersonaSelectionError(errorMessage);
+            case 'SecurityError':
+              return new SecurityError(errorMessage);
+            default:
+              return new FrameworkError(errorMessage);
+          }
         }
         break;
       }
