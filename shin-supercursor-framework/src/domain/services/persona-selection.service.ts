@@ -294,20 +294,24 @@ export class PersonaSelectionService {
 
     if (projectTechnologies.size === 0) return 0.5; // 中性的なスコア
 
-    let matchCount = 0;
-    let totalExpertise = 0;
+    // 一意の技術とその最高専門性スコアを記録
+    const matchedTechnologies = new Map<string, number>();
 
     for (const expertise of persona.expertise) {
       for (const tech of expertise.technologies) {
-        if (projectTechnologies.has(tech.toLowerCase())) {
-          matchCount++;
-          totalExpertise += this.getExpertiseLevelScore(expertise.level);
+        const lowerTech = tech.toLowerCase();
+        if (projectTechnologies.has(lowerTech)) {
+          const expertiseScore = this.getExpertiseLevelScore(expertise.level);
+          const currentScore = matchedTechnologies.get(lowerTech) ?? 0;
+          matchedTechnologies.set(lowerTech, Math.max(currentScore, expertiseScore));
         }
       }
     }
 
-    if (matchCount === 0) return 0;
+    if (matchedTechnologies.size === 0) return 0;
 
+    const totalExpertise = Array.from(matchedTechnologies.values()).reduce((sum, score) => sum + score, 0);
+    const matchCount = matchedTechnologies.size;
     const averageExpertise = totalExpertise / matchCount;
     const coverageRatio = matchCount / projectTechnologies.size;
 

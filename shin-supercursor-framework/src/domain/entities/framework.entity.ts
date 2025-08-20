@@ -272,7 +272,7 @@ export class FrameworkEntity extends BaseEntity {
       this._state = FrameworkState.ERROR;
       const frameworkError = error instanceof FrameworkError 
         ? error 
-        : new ConfigurationError(`初期化に失敗しました: ${error.message}`);
+        : new ConfigurationError(`初期化に失敗しました: ${this.formatErrorMessage(error)}`);
       
       this.emitEvent({
         type: FrameworkEventType.ERROR_OCCURRED,
@@ -344,7 +344,7 @@ export class FrameworkEntity extends BaseEntity {
     } catch (error) {
       const frameworkError = error instanceof FrameworkError 
         ? error 
-        : new CommandExecutionError(`コマンド実行に失敗しました: ${error.message}`);
+        : new CommandExecutionError(`コマンド実行に失敗しました: ${this.formatErrorMessage(error)}`);
 
       // エラー結果を構築
       result = {
@@ -463,7 +463,7 @@ export class FrameworkEntity extends BaseEntity {
       return {
         success: false,
         confidence: 0,
-        reasoning: `ペルソナ選択に失敗しました: ${error.message}`,
+        reasoning: `ペルソナ選択に失敗しました: ${this.formatErrorMessage(error)}`,
         alternatives: [],
         selectionTime: Date.now() - startTime
       };
@@ -497,7 +497,7 @@ export class FrameworkEntity extends BaseEntity {
 
     } catch (error) {
       this._state = FrameworkState.ERROR;
-      throw new FrameworkError(`シャットダウンに失敗しました: ${error.message}`);
+      throw new FrameworkError(`シャットダウンに失敗しました: ${this.formatErrorMessage(error)}`);
     }
   }
 
@@ -558,7 +558,7 @@ export class FrameworkEntity extends BaseEntity {
       );
       
     } catch (error) {
-      throw new ConfigurationError(`依存コンポーネントの初期化に失敗しました: ${error.message}`);
+      throw new ConfigurationError(`依存コンポーネントの初期化に失敗しました: ${this.formatErrorMessage(error)}`);
     }
   }
 
@@ -783,6 +783,13 @@ export class FrameworkEntity extends BaseEntity {
       }
     }
     return undefined;
+  }
+
+  /**
+   * エラーから安全にメッセージを取得するヘルパー
+   */
+  private formatErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async cleanup(): Promise<void> {
