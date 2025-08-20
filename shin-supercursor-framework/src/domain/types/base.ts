@@ -172,10 +172,6 @@ export interface BaseValueObject {
   toString(): string;
 }
 
-export interface Identifiable<T = string> {
-  readonly id: T;
-}
-
 export interface Timestamped {
   readonly createdAt: Date;
   readonly updatedAt: Date;
