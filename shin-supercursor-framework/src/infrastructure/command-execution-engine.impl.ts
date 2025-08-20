@@ -28,8 +28,13 @@ export interface CommandExecutionEngineConfig {
   readonly enableLogging: boolean;
 }
 
+interface ExtendedActiveExecution extends ActiveExecution {
+  status: ExecutionStatus; // mutableにする
+  abortController?: AbortController;
+}
+
 export class CommandExecutionEngineImpl implements CommandExecutionEngine {
-  private activeExecutions = new Map<CommandId, ActiveExecution>();
+  private activeExecutions = new Map<CommandId, ExtendedActiveExecution>();
   private executionPromises = new Map<CommandId, Promise<CommandResult>>();
 
   private readonly defaultConfig: CommandExecutionEngineConfig = {
@@ -57,14 +62,23 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
         throw new CommandExecutionError('Maximum concurrent executions exceeded');
       }
 
+      // Create AbortController for cancellation support
+      const abortController = new AbortController();
+
       // Create active execution tracking
-      const activeExecution: ActiveExecution = {
+      const activeExecution: ExtendedActiveExecution = {
         commandId: command.id,
         status: ExecutionStatus.RUNNING,
-        startTime: startTime as Timestamp
+        startTime: startTime as Timestamp,
+        abortController
       };
 
       this.activeExecutions.set(command.id, activeExecution);
+
+      // Check if already cancelled
+      if (abortController.signal.aborted) {
+        throw new CommandExecutionError('Command was cancelled before execution');
+      }
 
       // Route and execute the command
       const result = await this.commandRouter.routeCommand(
@@ -82,6 +96,12 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
         },
         command.executionContext
       );
+
+      // Check if cancelled during execution
+      if (abortController.signal.aborted) {
+        activeExecution.status = ExecutionStatus.CANCELLED;
+        throw new CommandExecutionError('Command was cancelled during execution');
+      }
 
       // Update execution status
       activeExecution.status = result.success ? ExecutionStatus.COMPLETED : ExecutionStatus.FAILED;
@@ -109,11 +129,15 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
       throw new CommandExecutionError('Maximum concurrent executions exceeded');
     }
 
+    // Create AbortController for cancellation support
+    const abortController = new AbortController();
+
     // Create active execution tracking
-    const activeExecution: ActiveExecution = {
+    const activeExecution: ExtendedActiveExecution = {
       commandId: command.id,
       status: ExecutionStatus.PENDING,
-      startTime: startTime as Timestamp
+      startTime: startTime as Timestamp,
+      abortController
     };
 
     this.activeExecutions.set(command.id, activeExecution);
@@ -144,6 +168,11 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
       return false;
     }
 
+    // Abort the execution if AbortController is available
+    if (activeExecution.abortController) {
+      activeExecution.abortController.abort();
+    }
+
     // Update status
     activeExecution.status = ExecutionStatus.CANCELLED;
 
@@ -160,6 +189,13 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
   }
 
   async getActiveExecutions(): Promise<readonly ActiveExecution[]> {
-    return Array.from(this.activeExecutions.values());
+    // Return readonly view of active executions without AbortController
+    return Array.from(this.activeExecutions.values()).map(exec => ({
+      commandId: exec.commandId,
+      status: exec.status,
+      startTime: exec.startTime,
+      progress: exec.progress,
+      estimatedCompletion: exec.estimatedCompletion
+    }));
   }
 }

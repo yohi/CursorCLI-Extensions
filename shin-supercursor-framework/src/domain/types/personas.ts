@@ -542,6 +542,20 @@ function getExpertiseLevelOrder(level: ExpertiseLevel): number {
 }
 
 // ==========================================
+// ペルソナ統計情報
+// ==========================================
+
+export interface PersonaStatistics {
+  readonly totalPersonas: number;
+  readonly activePersonas: number;
+  readonly archivedPersonas: number;
+  readonly personasByType: Record<PersonaType, number>;
+  readonly averageRating: number;
+  readonly totalUsage: number;
+  readonly lastUpdated: Timestamp;
+}
+
+// ==========================================
 // ユーティリティ関数
 // ==========================================
 

@@ -486,7 +486,8 @@ export class PersonaSelectionService {
       return projectTypeTriggers.some(trigger => {
         if (typeof trigger.pattern === 'string') {
           return trigger.pattern.toLowerCase() === projectType.toLowerCase();
-        } else if (trigger.pattern instanceof RegExp) {
+        } else if (trigger.pattern && typeof trigger.pattern.test === 'function') {
+          // RegExpオブジェクトまたはRegExp-likeオブジェクト
           return trigger.pattern.test(projectType);
         }
         return false;

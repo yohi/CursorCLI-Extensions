@@ -521,38 +521,9 @@ export class FrameworkEntity extends BaseEntity {
       const { PersonaManagerImpl } = await import('../../infrastructure/persona-manager.impl.js');
       const { PersonaSelectionService } = await import('../services/persona-selection.service.js');
 
-      // Note: PersonaRepository is abstract, we'd need a concrete implementation
-      // For now, create a mock implementation
-      const mockPersonaRepository = new (class extends (await import('../repositories/persona.repository.js')).PersonaRepository {
-        async findById() { return null; }
-        async findByIds() { return []; }
-        async findByFilter() { return []; }
-        async search() { return []; }
-        async findAllActive() { return []; }
-        async findByTechnology() { return []; }
-        async findByExpertiseDomain() { return []; }
-        async findByType() { return []; }
-        async create() { throw new Error('Not implemented'); }
-        async update() { throw new Error('Not implemented'); }
-        async delete() { return false; }
-        async exists() { return false; }
-        async count() { return 0; }
-        async getStatistics() { throw new Error('Not implemented'); }
-        async saveInteraction() { }
-        async saveFeedback() { }
-        async getSessionHistory() { return []; }
-        async getUserHistory() { return []; }
-        async getPopularPersonas() { return []; }
-        async getRecommendedPersonas() { return []; }
-        async findSimilar() { return []; }
-        async createMany() { return []; }
-        async updateMany() { return []; }
-        async deleteMany() { return 0; }
-        async findArchived() { return []; }
-        async archive() { return false; }
-        async unarchive() { return false; }
-        async transaction<T>(operation: any): Promise<T> { return operation(this); }
-      })();
+      // Use InMemoryPersonaRepository for development/testing
+      const { InMemoryPersonaRepository } = await import('../../infrastructure/persona-repository.inmemory.js');
+      const mockPersonaRepository = new InMemoryPersonaRepository();
       
       // CommandRouter の初期化
       this._commandRouter = new CommandRoutingService({

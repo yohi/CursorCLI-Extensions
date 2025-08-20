@@ -65,18 +65,117 @@ export class PersonaManagerImpl implements PersonaManager {
         ? await this.personaRepository.findById(context.persona)
         : undefined;
 
+      let confidence = 0.5; // Default fallback confidence
+      let reasoning = 'No active persona selected';
+
+      if (activePersona) {
+        // Calculate dynamic confidence based on persona analysis
+        confidence = await this.calculatePersonaConfidence(activePersona, context);
+        reasoning = `Using active persona: ${activePersona.name} (confidence: ${(confidence * 100).toFixed(1)}%)`;
+      } else {
+        // Try to find suitable personas and calculate confidence
+        const suitablePersonas = await this.findSuitablePersonas(context);
+        if (suitablePersonas.length > 0) {
+          confidence = suitablePersonas[0].confidence;
+          reasoning = `No active persona, but found ${suitablePersonas.length} suitable persona(s) (best match confidence: ${(confidence * 100).toFixed(1)}%)`;
+        }
+      }
+
       return {
         sessionId: context.sessionId,
         activePersona: activePersona || undefined,
-        confidence: activePersona ? 0.8 : 0.5,
-        reasoning: activePersona 
-          ? `Using active persona: ${activePersona.name}`
-          : 'No active persona selected',
+        confidence,
+        reasoning,
         alternatives: [],
         executionContext: context
       };
     } catch (error) {
       throw new FrameworkError(`Context analysis failed: ${error.message}`);
+    }
+  }
+
+  private async calculatePersonaConfidence(persona: AIPersona, context: ExecutionContext): Promise<number> {
+    let confidence = 0;
+    let factors = 0;
+
+    // Factor 1: Technology stack match
+    try {
+      const projectTechnologies = context.project.technologies.frameworks.map(f => f.name.toLowerCase());
+      const personaTechnologies = persona.expertise.flatMap(e => e.technologies.map(t => t.toLowerCase()));
+      
+      const techMatches = projectTechnologies.filter(tech => 
+        personaTechnologies.some(pTech => pTech.includes(tech) || tech.includes(pTech))
+      ).length;
+      
+      if (projectTechnologies.length > 0) {
+        confidence += (techMatches / projectTechnologies.length) * 0.4;
+        factors++;
+      }
+    } catch {
+      // Ignore technology match errors
+    }
+
+    // Factor 2: Project type compatibility
+    try {
+      const projectTypeMapping: Record<string, import('../domain/types/personas.js').PersonaType[]> = {
+        'web_application': ['developer', 'designer', 'architect'] as any,
+        'api_service': ['developer', 'architect', 'devops'] as any,
+        'library': ['developer', 'architect'] as any,
+        'cli_tool': ['developer', 'devops'] as any,
+        'microservice': ['architect', 'devops', 'developer'] as any
+      };
+
+      const suitableTypes = projectTypeMapping[context.project.type] || [];
+      const typeMatch = suitableTypes.includes(persona.type as any) ? 1 : 0.3;
+      confidence += typeMatch * 0.3;
+      factors++;
+    } catch {
+      // Ignore project type match errors
+    }
+
+    // Factor 3: Persona activation triggers
+    try {
+      const triggerMatches = persona.activationTriggers.filter(trigger => {
+        if (trigger.type === 'project_type') {
+          if (typeof trigger.pattern === 'string') {
+            return trigger.pattern.toLowerCase() === context.project.type.toLowerCase();
+          } else if (trigger.pattern && typeof trigger.pattern.test === 'function') {
+            return trigger.pattern.test(context.project.type);
+          }
+        }
+        return false;
+      }).length;
+
+      if (persona.activationTriggers.length > 0) {
+        confidence += (triggerMatches / persona.activationTriggers.length) * 0.3;
+        factors++;
+      }
+    } catch {
+      // Ignore trigger match errors
+    }
+
+    // Calculate final confidence with fallback
+    const finalConfidence = factors > 0 ? confidence / factors : 0.5;
+    
+    // Ensure confidence is within reasonable bounds
+    return Math.max(0.1, Math.min(0.95, finalConfidence));
+  }
+
+  private async findSuitablePersonas(context: ExecutionContext): Promise<Array<{persona: import('../domain/types/personas.js').AIPersona, confidence: number}>> {
+    try {
+      const allPersonas = await this.personaRepository.findAllActive();
+      const suitablePersonas = [];
+
+      for (const persona of allPersonas) {
+        const confidence = await this.calculatePersonaConfidence(persona, context);
+        if (confidence > 0.3) { // Minimum threshold for suitability
+          suitablePersonas.push({ persona, confidence });
+        }
+      }
+
+      return suitablePersonas.sort((a, b) => b.confidence - a.confidence);
+    } catch {
+      return [];
     }
   }
 
