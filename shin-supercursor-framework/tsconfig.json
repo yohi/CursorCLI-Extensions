@@ -1,73 +1,26 @@
 {
   "compilerOptions": {
-    // ベース設定 - ES modules対応
     "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ESNext", 
+    "module": "ESNext",
     "moduleResolution": "NodeNext",
     "verbatimModuleSyntax": true,
-    
-    // 基本設定
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    // NestJS固有設定
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-
-    // 厳格な型安全性（Framework-1レベル）
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "noImplicitThis": true,
-    "noPropertyAccessFromIndexSignature": true,
-
-    // 出力設定
     "declaration": true,
-    "declarationMap": true, 
+    "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
-    "incremental": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-
-    // パス解決
-    "baseUrl": "./",
-    "paths": {
-      "@application/*": ["src/application/*"],
-      "@domain/*": ["src/domain/*"],
-      "@infrastructure/*": ["src/infrastructure/*"],
-      "@presentation/*": ["src/presentation/*"],
-      "@shared/*": ["src/shared/*"],
-      "@config/*": ["src/config/*"],
-      "@test/*": ["test/*"]
-    },
-
-    // 型定義
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/domain/types"
-    ],
-
-    // 解決設定
-    "resolveJsonModule": true,
-    "allowJs": false
+    "rootDir": "./src"
   },
   "include": [
-    "src/**/*",
-    "test/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "coverage",
-    "**/*.spec.ts",
-    "**/*.test.ts"
-  ],
-  "ts-node": {
-    "require": ["tsconfig-paths/register"],
-    "esm": true
-  }
+    "dist"
+  ]
 }
