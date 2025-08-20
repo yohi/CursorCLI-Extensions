@@ -181,7 +181,7 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     const activePersonas = allPersonas.filter(p => p.configuration.active);
     const archivedCount = this.archivedPersonas.size;
     
-    const personasByType = Object.values(PersonaType).reduce((acc, type) => {
+    const personasByType = (Object.values(PersonaType) as PersonaType[]).reduce((acc, type) => {
       acc[type] = allPersonas.filter(p => p.type === type).length;
       return acc;
     }, {} as Record<PersonaType, number>);

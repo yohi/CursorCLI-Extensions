@@ -113,22 +113,23 @@ export class PersonaSelectionService {
 
       const selectionTime = Date.now() - startTime;
 
-      // Find confidence for the selected persona
-      const selectedCandidate = scoredCandidates.find(c => 
-        c.persona.id === selectedPersona?.id
+      // Find confidence for the actually returned persona
+      const actualPersona = selectedPersona || finalPersona;
+      const actualCandidate = scoredCandidates.find(c => 
+        c.persona.id === actualPersona?.id
       );
-      const selectedConfidence = selectedCandidate?.confidence || 0;
+      const actualConfidence = actualCandidate?.confidence || 0;
 
-      // Create alternatives list excluding the selected persona
+      // Create alternatives list excluding the actually selected persona
       const alternatives = scoredCandidates
-        .filter(c => c.persona.id !== selectedPersona?.id)
+        .filter(c => c.persona.id !== actualPersona?.id)
         .slice(0, selectionConfig.maxCandidates - 1);
 
       return {
         success: finalPersona !== null,
-        selectedPersona: finalPersona || undefined,
-        confidence: selectedPersona ? selectedConfidence : 0,
-        reasoning: this.generateReasoning(selectedPersona, scoredCandidates, selectionConfig),
+        selectedPersona: actualPersona || undefined,
+        confidence: actualConfidence,
+        reasoning: this.generateReasoning(actualPersona, scoredCandidates, selectionConfig),
         alternatives,
         fallback: !selectedPersona ? finalPersona : undefined,
         selectionTime
