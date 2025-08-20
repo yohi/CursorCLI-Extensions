@@ -21,7 +21,8 @@ import {
   PersonaSearchQuery,
   PersonaSearchResult,
   PersonaInteraction,
-  PersonaFeedback
+  PersonaFeedback,
+  PersonaType
 } from '../domain/types/personas.js';
 
 import {
@@ -95,21 +96,26 @@ export class PersonaManagerImpl implements PersonaManager {
   }
 
   private async calculatePersonaConfidence(persona: AIPersona, context: ExecutionContext): Promise<number> {
-    let confidence = 0;
-    let factors = 0;
+    const TECH_WEIGHT = 0.4;
+    const TYPE_WEIGHT = 0.3;
+    const TRIGGER_WEIGHT = 0.3;
+
+    let score = 0;
+    let totalWeight = 0;
 
     // Factor 1: Technology stack match
     try {
-      const projectTechnologies = context.project.technologies.frameworks.map(f => f.name.toLowerCase());
-      const personaTechnologies = persona.expertise.flatMap(e => e.technologies.map(t => t.toLowerCase()));
-      
-      const techMatches = projectTechnologies.filter(tech => 
-        personaTechnologies.some(pTech => pTech.includes(tech) || tech.includes(pTech))
-      ).length;
-      
-      if (projectTechnologies.length > 0) {
-        confidence += (techMatches / projectTechnologies.length) * 0.4;
-        factors++;
+      const projectTechnologies =
+        context.project?.technologies?.frameworks?.map(f => f.name.toLowerCase()) ?? [];
+      const personaTechnologies =
+        persona.expertise?.flatMap(e => (e.technologies ?? []).map(t => t.toLowerCase())) ?? [];
+
+      if (projectTechnologies.length > 0 && personaTechnologies.length > 0) {
+        const techMatches = projectTechnologies.filter(tech =>
+          personaTechnologies.some(pTech => pTech.includes(tech) || tech.includes(pTech))
+        ).length;
+        score += (techMatches / projectTechnologies.length) * TECH_WEIGHT;
+        totalWeight += TECH_WEIGHT;
       }
     } catch {
       // Ignore technology match errors
@@ -117,47 +123,48 @@ export class PersonaManagerImpl implements PersonaManager {
 
     // Factor 2: Project type compatibility
     try {
-      const projectTypeMapping: Record<string, import('../domain/types/personas.js').PersonaType[]> = {
-        'web_application': ['developer', 'designer', 'architect'] as any,
-        'api_service': ['developer', 'architect', 'devops'] as any,
-        'library': ['developer', 'architect'] as any,
-        'cli_tool': ['developer', 'devops'] as any,
-        'microservice': ['architect', 'devops', 'developer'] as any
+      const projectType = context.project?.type;
+      const projectTypeMapping: Record<string, PersonaType[]> = {
+        web_application: [PersonaType.DEVELOPER, PersonaType.DESIGNER, PersonaType.ARCHITECT],
+        api_service: [PersonaType.DEVELOPER, PersonaType.ARCHITECT, PersonaType.DEVOPS],
+        library: [PersonaType.DEVELOPER, PersonaType.ARCHITECT],
+        cli_tool: [PersonaType.DEVELOPER, PersonaType.DEVOPS],
+        microservice: [PersonaType.ARCHITECT, PersonaType.DEVOPS, PersonaType.DEVELOPER],
       };
 
-      const suitableTypes = projectTypeMapping[context.project.type] || [];
-      const typeMatch = suitableTypes.includes(persona.type as any) ? 1 : 0.3;
-      confidence += typeMatch * 0.3;
-      factors++;
+      if (projectType) {
+        const suitableTypes = projectTypeMapping[projectType] ?? [];
+        const typeMatch = suitableTypes.includes(persona.type as PersonaType) ? 1 : 0.3;
+        score += typeMatch * TYPE_WEIGHT;
+        totalWeight += TYPE_WEIGHT;
+      }
     } catch {
       // Ignore project type match errors
     }
 
     // Factor 3: Persona activation triggers
     try {
-      const triggerMatches = persona.activationTriggers.filter(trigger => {
-        if (trigger.type === 'project_type') {
-          if (typeof trigger.pattern === 'string') {
-            return trigger.pattern.toLowerCase() === context.project.type.toLowerCase();
-          } else if (trigger.pattern && typeof trigger.pattern.test === 'function') {
-            return trigger.pattern.test(context.project.type);
+      const triggers = persona.activationTriggers ?? [];
+      const projectType = context.project?.type;
+      if (triggers.length > 0 && projectType) {
+        const triggerMatches = triggers.filter(trigger => {
+          if (trigger.type === 'project_type') {
+            if (typeof trigger.pattern === 'string') {
+              return trigger.pattern.toLowerCase() === projectType.toLowerCase();
+            } else if (trigger.pattern && typeof (trigger.pattern as any).test === 'function') {
+              return (trigger.pattern as RegExp).test(projectType);
+            }
           }
-        }
-        return false;
-      }).length;
-
-      if (persona.activationTriggers.length > 0) {
-        confidence += (triggerMatches / persona.activationTriggers.length) * 0.3;
-        factors++;
+          return false;
+        }).length;
+        score += (triggerMatches / triggers.length) * TRIGGER_WEIGHT;
+        totalWeight += TRIGGER_WEIGHT;
       }
     } catch {
       // Ignore trigger match errors
     }
 
-    // Calculate final confidence with fallback
-    const finalConfidence = factors > 0 ? confidence / factors : 0.5;
-    
-    // Ensure confidence is within reasonable bounds
+    const finalConfidence = totalWeight > 0 ? score / totalWeight : 0.5;
     return Math.max(0.1, Math.min(0.95, finalConfidence));
   }
 
