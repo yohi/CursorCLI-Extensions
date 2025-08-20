@@ -212,21 +212,13 @@ export class InMemoryPersonaRepository extends PersonaRepository {
 
   async getSessionHistory(sessionId: SessionId): Promise<readonly PersonaInteraction[]> {
     return Array.from(this.interactions.values())
-      .filter(interaction => {
-        // SessionIdの関連付けはinteraction内に含まれていると仮定
-        // 実際の実装では適切なフィールドを使用
-        return true; // 簡易実装
-      })
+      .filter(interaction => interaction.sessionId === sessionId)
       .sort((a, b) => b.timestamp - a.timestamp);
   }
 
   async getUserHistory(userId: UserId): Promise<readonly PersonaInteraction[]> {
     return Array.from(this.interactions.values())
-      .filter(interaction => {
-        // UserIdの関連付けはinteraction内に含まれていると仮定
-        // 実際の実装では適切なフィールドを使用
-        return true; // 簡易実装
-      })
+      .filter(interaction => interaction.userId === userId)
       .sort((a, b) => b.timestamp - a.timestamp);
   }
 

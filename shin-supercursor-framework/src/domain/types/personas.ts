@@ -317,6 +317,8 @@ export interface PersonaInteraction {
   readonly timestamp: Timestamp;
   readonly commandId: CommandId;
   readonly personaId: PersonaId;
+  readonly sessionId: SessionId;
+  readonly userId: UserId;
   readonly duration: number;
   readonly success: boolean;
   readonly userSatisfaction?: number;
