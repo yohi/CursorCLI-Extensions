@@ -159,8 +159,8 @@ export class SecurityError extends FrameworkError {
 // ベースインターフェース
 // ==========================================
 
-export interface BaseEntity {
-  readonly id: string;
+export interface BaseEntity<T = string> {
+  readonly id: T;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

@@ -13,8 +13,8 @@ import {
   VerbosityLevel,
   DeepReadonly,
   BaseEntity,
-  Identifiable,
-  NonEmptyArray
+  NonEmptyArray,
+  isPersonaId
 } from './base.js';
 
 import { Command, ExecutionContext } from './commands.js';
@@ -23,8 +23,7 @@ import { Command, ExecutionContext } from './commands.js';
 // ペルソナ基本定義
 // ==========================================
 
-export interface AIPersona extends BaseEntity, Identifiable<PersonaId> {
-  readonly id: PersonaId;
+export interface AIPersona extends BaseEntity<PersonaId> {
   readonly name: string;
   readonly displayName: string;
   readonly description: string;
@@ -504,9 +503,7 @@ export type TemplateParameters = Record<string, unknown>;
 // 型ガード
 // ==========================================
 
-export function isPersonaId(value: unknown): value is PersonaId {
-  return typeof value === 'string' && /^persona_[a-zA-Z0-9]{12}$/.test(value);
-}
+
 
 export function isAIPersona(value: unknown): value is AIPersona {
   return (
