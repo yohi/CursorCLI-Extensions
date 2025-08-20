@@ -3,6 +3,8 @@
  * Framework-1とFramework-2の型定義を統合し、NestJSベストプラクティスを適用
  */
 
+import { randomBytes } from 'node:crypto';
+
 // ==========================================
 // ブランド型定義 (型安全性強化)
 // ==========================================
@@ -271,24 +273,30 @@ export function isNonEmptyArray<T>(value: T[]): value is NonEmptyArray<T> {
 // 型ファクトリー関数
 // ==========================================
 
+/**
+ * 暗号学的に安全な乱数文字列を生成
+ * @param len 生成する文字列の長さ
+ * @returns hex文字列（[a-f0-9]で構成され、[a-zA-Z0-9]の部分集合として許容される）
+ */
+function randomString(len: number): string {
+  // hexは[a-f0-9]で、正規表現[a-zA-Z0-9]の部分集合として許容されます
+  return randomBytes(Math.ceil(len / 2)).toString('hex').slice(0, len);
+}
+
 export function createCommandId(): CommandId {
-  const randomBytes = Math.random().toString(36).substring(2, 18);
-  return `cmd_${randomBytes}` as CommandId;
+  return `cmd_${randomString(16)}` as CommandId;
 }
 
 export function createPersonaId(): PersonaId {
-  const randomBytes = Math.random().toString(36).substring(2, 14);
-  return `persona_${randomBytes}` as PersonaId;
+  return `persona_${randomString(12)}` as PersonaId;
 }
 
 export function createSessionId(): SessionId {
-  const randomBytes = Math.random().toString(36).substring(2, 22);
-  return `session_${randomBytes}` as SessionId;
+  return `session_${randomString(20)}` as SessionId;
 }
 
 export function createUserId(): UserId {
-  const randomBytes = Math.random().toString(36).substring(2, 14);
-  return `user_${randomBytes}` as UserId;
+  return `user_${randomString(12)}` as UserId;
 }
 
 export function createTimestamp(): Timestamp {
