@@ -91,7 +91,7 @@ export class PersonaManagementService implements PersonaManager {
       // ペルソナコンテキストを構築
       const personaContext: import('../../domain/types/personas.js').PersonaContext = {
         sessionId: executionContext.sessionId,
-        activePersona,
+        activePersona: activePersona ?? undefined,
         confidence: 0.8, // 初期値、実際の分析で更新
         reasoning: 'コンテキスト分析による初期評価',
         alternatives: [],
@@ -276,7 +276,7 @@ export class PersonaManagementService implements PersonaManager {
 
       const result: PersonaSwitchResult = {
         success: true,
-        previousPersona: currentPersona,
+        previousPersona: currentPersona ?? undefined,
         newPersona,
         reason: `ユーザーリクエストによるペルソナ切り替え`,
         switchTime
@@ -485,7 +485,7 @@ export class PersonaManagementService implements PersonaManager {
 
       return {
         interactions,
-        feedbacks: [], // 型変換が必要な場合は実装
+        feedbacks, // 実際のフィードバックを返す
         adaptations: [] // 適応データ
       };
     } catch {

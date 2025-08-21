@@ -41,6 +41,7 @@ export interface PersonaManagerConfig {
 
 export class PersonaManagerImpl implements PersonaManager {
   private activeSessions = new Map<SessionId, PersonaId>();
+  private readonly logger = { error: console.error }; // Simple logger implementation
   
   private readonly defaultConfig: PersonaManagerConfig = {
     enableLearning: true,

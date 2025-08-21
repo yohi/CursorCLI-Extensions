@@ -12,6 +12,15 @@ import {
   PersonaSelectionError
 } from '../../domain/types/index.js';
 
+import {
+  PersonaSelectionResult,
+  AIPersona
+} from '../../domain/types/personas.js';
+
+import {
+  ExecutionContext
+} from '../../domain/types/commands.js';
+
 import { ExecuteSupercursorCommand } from './execute-supercursor.command.js';
 import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
 import { CommandRoutingService } from '../../domain/services/command-routing.service.js';
@@ -93,7 +102,7 @@ export class ExecuteSupercursorHandler
   /**
    * コンテキストを分析する
    */
-  private async analyzeContext(command: ExecuteSupercursorCommand) {
+  private async analyzeContext(command: ExecuteSupercursorCommand): Promise<ExecutionContext> {
     // Framework-1 の ContextAnalyzer 統合
     // 実際の実装では、プロジェクト構造、技術スタック、ユーザー履歴などを分析
     return {
@@ -102,17 +111,14 @@ export class ExecuteSupercursorHandler
       user: command.executionContext.user,
       project: command.executionContext.project,
       environment: command.executionContext.environment,
-      commandHistory: [], // TODO: セッション履歴から取得
-      userExperience: 'intermediate', // TODO: ユーザープロファイルから算出
-      projectComplexity: 'medium', // TODO: プロジェクト分析から算出
-      timeOfDay: new Date().getHours()
+      persona: command.executionContext.persona
     };
   }
 
   /**
    * 適切なペルソナを選択する
    */
-  private async selectPersona(context: any) {
+  private async selectPersona(context: ExecutionContext): Promise<PersonaSelectionResult> {
     try {
       if (!this.personaService) {
         return {
@@ -137,8 +143,8 @@ export class ExecuteSupercursorHandler
    */
   private async executeCommand(
     command: ExecuteSupercursorCommand,
-    context: any,
-    persona?: any
+    context: ExecutionContext,
+    persona?: AIPersona
   ): Promise<CommandResult> {
     
     if (!this.commandRouter) {
@@ -174,7 +180,7 @@ export class ExecuteSupercursorHandler
         performance: {
           startTime: command.timestamp as import('../../domain/types/base.js').Timestamp,
           endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
-          duration: Date.now() - command.timestamp
+          duration: Math.max(0, Date.now() - command.timestamp)
         }
       };
 
