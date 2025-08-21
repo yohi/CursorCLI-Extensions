@@ -59,6 +59,10 @@ export interface FilePermissions {
 
 /**
  * ファイル変更イベント
+ * 
+ * 注意: Node.jsのfs.watchは'rename'イベントをファイルの作成、削除、リネームで発生させるため、
+ * 実装では'renamed'タイプが包括的なファイルシステム変更を表します。
+ * より詳細な判定が必要な場合は、呼び出し元で追加の検証を行ってください。
  */
 export interface FileChangeEvent {
   readonly type: 'created' | 'modified' | 'deleted' | 'renamed';
@@ -153,12 +157,12 @@ export class FileSystemAdapter {
         throw error;
       }
       
-      if (error.code === 'ENOENT') {
+      if (error?.code === 'ENOENT') {
         throw new FileNotFoundError(`File not found: ${filePath}`);
-      } else if (error.code === 'EACCES') {
+      } else if (error?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${filePath}`);
       } else {
-        throw new FileSystemError(`Failed to read file: ${error.message}`);
+        throw new FileSystemError(`Failed to read file: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
@@ -215,12 +219,12 @@ export class FileSystemAdapter {
         throw error;
       }
       
-      if (error.code === 'EACCES') {
+      if (error?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${filePath}`);
-      } else if (error.code === 'ENOENT') {
+      } else if (error?.code === 'ENOENT') {
         throw new FileSystemError(`Directory not found: ${dirname(filePath)}`);
       } else {
-        throw new FileSystemError(`Failed to write file: ${error.message}`);
+        throw new FileSystemError(`Failed to write file: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
@@ -279,7 +283,7 @@ export class FileSystemAdapter {
             const subListing = await this.listDirectory(itemPath, { ...options, recursive: true });
             entries.push(...subListing.entries);
           } catch (error) {
-            this.logger.warn(`Failed to list subdirectory: ${itemPath}`, error.message);
+            this.logger.warn(`Failed to list subdirectory: ${itemPath}`, error instanceof Error ? error.message : String(error));
           }
         }
       }
@@ -304,12 +308,12 @@ export class FileSystemAdapter {
         throw error;
       }
       
-      if (error.code === 'ENOENT') {
+      if (error?.code === 'ENOENT') {
         throw new FileNotFoundError(`Directory not found: ${dirPath}`);
-      } else if (error.code === 'EACCES') {
+      } else if (error?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${dirPath}`);
       } else {
-        throw new FileSystemError(`Failed to list directory: ${error.message}`);
+        throw new FileSystemError(`Failed to list directory: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
@@ -352,14 +356,14 @@ export class FileSystemAdapter {
         return;
       }
       
-      if (error.code === 'ENOENT') {
+      if (error?.code === 'ENOENT') {
         throw new FileNotFoundError(`Path not found: ${path}`);
-      } else if (error.code === 'EACCES') {
+      } else if (error?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${path}`);
-      } else if (error.code === 'ENOTEMPTY') {
+      } else if (error?.code === 'ENOTEMPTY') {
         throw new FileSystemError(`Directory not empty: ${path}. Use recursive option.`);
       } else {
-        throw new FileSystemError(`Failed to delete: ${error.message}`);
+        throw new FileSystemError(`Failed to delete: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
@@ -377,15 +381,15 @@ export class FileSystemAdapter {
       await fs.mkdir(absolutePath, { recursive });
       this.logger.debug(`Directory created: ${dirPath}`);
     } catch (error) {
-      if (error.code === 'EEXIST') {
+      if (error?.code === 'EEXIST') {
         // ディレクトリが既に存在する場合は成功とみなす
         return;
       }
       
-      if (error.code === 'EACCES') {
+      if (error?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${dirPath}`);
       } else {
-        throw new FileSystemError(`Failed to create directory: ${error.message}`);
+        throw new FileSystemError(`Failed to create directory: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
@@ -454,7 +458,7 @@ export class FileSystemAdapter {
       return watchId;
       
     } catch (error) {
-      throw new FileSystemError(`Failed to start file watcher: ${error.message}`);
+      throw new FileSystemError(`Failed to start file watcher: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -476,7 +480,7 @@ export class FileSystemAdapter {
       this.logger.debug(`File watcher stopped: ${watchId}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to stop file watcher: ${error.message}`);
+      this.logger.error(`Failed to stop file watcher: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }
@@ -529,12 +533,12 @@ export class FileSystemAdapter {
     try {
       await fs.access(path, mode);
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error?.code === 'ENOENT') {
         throw new FileNotFoundError(`Path not found: ${path}`);
-      } else if (error.code === 'EACCES') {
+      } else if (error?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${path}`);
       } else {
-        throw new FileSystemError(`Access check failed: ${error.message}`);
+        throw new FileSystemError(`Access check failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
