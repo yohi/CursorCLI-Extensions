@@ -40,6 +40,13 @@ export class ExecuteSupercursorHandler
 
   private readonly logger = new Logger(ExecuteSupercursorHandler.name);
 
+  /**
+   * エラーオブジェクトを正規化してError-likeオブジェクトに変換する
+   */
+  private normalizeError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+
   constructor(
     @Inject('PERSONA_SERVICE')
     private readonly personaService: PersonaSelectionService,
@@ -84,17 +91,19 @@ export class ExecuteSupercursorHandler
 
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
       const duration = Date.now() - startTime;
-      this.logger.error(`Command execution failed after ${duration}ms: ${error.message}`, error.stack);
+      this.logger.error(`Command execution failed after ${duration}ms: ${normalized.message}`, normalized.stack);
       
       // エラーイベントを発行
-      await this.publishErrorEvent(command, error);
+      await this.publishErrorEvent(command, normalized);
       
-      throw new CommandExecutionError(error.message, {
+      throw new CommandExecutionError(normalized.message, {
         commandId: command.id,
         sessionId: command.sessionId,
-        duration
+        duration,
+        originalError: normalized.stack
       });
     }
   }
@@ -132,9 +141,10 @@ export class ExecuteSupercursorHandler
 
       return await this.personaService.selectPersona(context);
       
-    } catch (error) {
-      this.logger.error(`Persona selection failed: ${error.message}`, error.stack);
-      throw new PersonaSelectionError(`ペルソナ選択に失敗しました: ${error.message}`);
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
+      this.logger.error(`Persona selection failed: ${normalized.message}`, normalized.stack);
+      throw new PersonaSelectionError(`ペルソナ選択に失敗しました: ${normalized.message}`);
     }
   }
 
@@ -184,11 +194,13 @@ export class ExecuteSupercursorHandler
         }
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
       // 実行エラーを適切にラップ
-      throw new CommandExecutionError(`コマンド実行エラー: ${error.message}`, {
+      throw new CommandExecutionError(`コマンド実行エラー: ${normalized.message}`, {
         commandName: command.parsedCommand.name,
-        personaId: persona?.id
+        personaId: persona?.id,
+        originalError: normalized.stack
       });
     }
   }
@@ -216,8 +228,9 @@ export class ExecuteSupercursorHandler
       // 暫定的にログ出力
       this.logger.log(`Event published: command executed`, 'EventBus');
       
-    } catch (error) {
-      this.logger.error(`Failed to publish execution event: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
+      this.logger.error(`Failed to publish execution event: ${normalized.message}`, normalized.stack);
       // イベント発行の失敗はコマンド実行の失敗として扱わない
     }
   }
@@ -247,8 +260,9 @@ export class ExecuteSupercursorHandler
       // 暫定的にログ出力
       this.logger.error(`Event published: command failed`, 'EventBus');
       
-    } catch (eventError) {
-      this.logger.error(`Failed to publish error event: ${eventError.message}`, eventError.stack);
+    } catch (eventError: unknown) {
+      const normalized = this.normalizeError(eventError);
+      this.logger.error(`Failed to publish error event: ${normalized.message}`, normalized.stack);
     }
   }
 }
