@@ -13,6 +13,8 @@ import {
 } from '../../domain/types/index.js';
 
 import { ExecuteSupercursorCommand } from './execute-supercursor.command.js';
+import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
+import { CommandRoutingService } from '../../domain/services/command-routing.service.js';
 
 /**
  * SuperCursorコマンド実行ハンドラー
@@ -31,10 +33,10 @@ export class ExecuteSupercursorHandler
 
   constructor(
     @Inject('PERSONA_SERVICE')
-    private readonly personaService: any, // TODO: 正しい型に置き換え
+    private readonly personaService: PersonaSelectionService,
     
     @Inject('COMMAND_ROUTER')
-    private readonly commandRouter: any, // TODO: 正しい型に置き換え
+    private readonly commandRouter: CommandRoutingService,
     
     private readonly eventBus: EventBus
   ) {}
@@ -170,8 +172,8 @@ export class ExecuteSupercursorHandler
           }
         },
         performance: {
-          startTime: command.timestamp as any,
-          endTime: Date.now() as any,
+          startTime: command.timestamp as import('../../domain/types/base.js').Timestamp,
+          endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
           duration: Date.now() - command.timestamp
         }
       };

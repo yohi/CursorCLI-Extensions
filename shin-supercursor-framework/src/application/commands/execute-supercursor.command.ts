@@ -50,8 +50,8 @@ export class ExecuteSupercursorCommand {
       environment: {
         platform: process.platform,
         nodeVersion: process.version,
-        timestamp: this.timestamp as any,
-        variables: process.env as DeepReadonly<Record<string, string>>
+        timestamp: this.timestamp as import('../../domain/types/base.js').Timestamp,
+        variables: process.env as DeepReadonly<Record<string, string | undefined>>
       }
     };
   }

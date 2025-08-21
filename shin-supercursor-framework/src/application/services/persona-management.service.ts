@@ -203,7 +203,7 @@ export class PersonaManagementService implements PersonaManager {
 
       return {
         success: false,
-        persona: {} as AIPersona, // エラー時の最小構造
+        persona: undefined, // エラー時はペルソナなし
         confidence: 0,
         reasoning: `活性化エラー: ${error.message}`,
         activationTime: Date.now() - startTime,
@@ -293,7 +293,7 @@ export class PersonaManagementService implements PersonaManager {
 
       return {
         success: false,
-        newPersona: {} as AIPersona,
+        newPersona: undefined,
         reason: `切り替えエラー: ${error.message}`,
         switchTime: Date.now() - startTime
       };
