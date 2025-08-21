@@ -316,6 +316,8 @@ export interface PersonaInteraction {
   readonly timestamp: Timestamp;
   readonly commandId: CommandId;
   readonly personaId: PersonaId;
+  readonly sessionId: SessionId;
+  readonly userId: UserId;
   readonly duration: number;
   readonly success: boolean;
   readonly userSatisfaction?: number;
@@ -536,6 +538,20 @@ function getExpertiseLevelOrder(level: ExpertiseLevel): number {
     [ExpertiseLevel.MASTER]: 5
   };
   return order[level] || 0;
+}
+
+// ==========================================
+// ペルソナ統計情報
+// ==========================================
+
+export interface PersonaStatistics {
+  readonly totalPersonas: number;
+  readonly activePersonas: number;
+  readonly archivedPersonas: number;
+  readonly personasByType: Record<PersonaType, number>;
+  readonly averageRating: number;
+  readonly totalUsage: number;
+  readonly lastUpdated: Timestamp;
 }
 
 // ==========================================
