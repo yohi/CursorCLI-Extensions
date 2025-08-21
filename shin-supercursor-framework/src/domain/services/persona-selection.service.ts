@@ -113,21 +113,34 @@ export class PersonaSelectionService {
 
       const selectionTime = Date.now() - startTime;
 
+      // Find confidence for the actually returned persona
+      const actualPersona = selectedPersona || finalPersona;
+      const actualCandidate = scoredCandidates.find(c => 
+        c.persona.id === actualPersona?.id
+      );
+      const actualConfidence = actualCandidate?.confidence || 0;
+
+      // Create alternatives list excluding the actually selected persona
+      const alternatives = scoredCandidates
+        .filter(c => c.persona.id !== actualPersona?.id)
+        .slice(0, selectionConfig.maxCandidates - 1);
+
       return {
         success: finalPersona !== null,
-        selectedPersona: finalPersona || undefined,
-        confidence: selectedPersona ? scoredCandidates[0]?.confidence || 0 : 0,
-        reasoning: this.generateReasoning(selectedPersona, scoredCandidates, selectionConfig),
-        alternatives: scoredCandidates.slice(1, selectionConfig.maxCandidates),
+        selectedPersona: actualPersona || undefined,
+        confidence: actualConfidence,
+        reasoning: this.generateReasoning(actualPersona, scoredCandidates, selectionConfig),
+        alternatives,
         fallback: !selectedPersona ? finalPersona : undefined,
         selectionTime
       };
 
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
       return {
         success: false,
         confidence: 0,
-        reasoning: `ペルソナ選択エラー: ${error.message}`,
+        reasoning: `ペルソナ選択エラー: ${msg}`,
         alternatives: [],
         selectionTime: Date.now() - startTime
       };
@@ -281,20 +294,24 @@ export class PersonaSelectionService {
 
     if (projectTechnologies.size === 0) return 0.5; // 中性的なスコア
 
-    let matchCount = 0;
-    let totalExpertise = 0;
+    // 一意の技術とその最高専門性スコアを記録
+    const matchedTechnologies = new Map<string, number>();
 
     for (const expertise of persona.expertise) {
       for (const tech of expertise.technologies) {
-        if (projectTechnologies.has(tech.toLowerCase())) {
-          matchCount++;
-          totalExpertise += this.getExpertiseLevelScore(expertise.level);
+        const lowerTech = tech.toLowerCase();
+        if (projectTechnologies.has(lowerTech)) {
+          const expertiseScore = this.getExpertiseLevelScore(expertise.level);
+          const currentScore = matchedTechnologies.get(lowerTech) ?? 0;
+          matchedTechnologies.set(lowerTech, Math.max(currentScore, expertiseScore));
         }
       }
     }
 
-    if (matchCount === 0) return 0;
+    if (matchedTechnologies.size === 0) return 0;
 
+    const totalExpertise = Array.from(matchedTechnologies.values()).reduce((sum, score) => sum + score, 0);
+    const matchCount = matchedTechnologies.size;
     const averageExpertise = totalExpertise / matchCount;
     const coverageRatio = matchCount / projectTechnologies.size;
 
@@ -452,9 +469,36 @@ export class PersonaSelectionService {
 
   // ヘルパーメソッド群
   private async getPersonasByProjectType(projectType: string): Promise<AIPersona[]> {
-    // プロジェクトタイプに基づいてペルソナを検索
+    if (!projectType) {
+      return [];
+    }
+
+    // 大文字小文字を無視してプロジェクトタイプに基づいてペルソナを検索
     const allPersonas = await this.personaRepository.findAllActive();
-    return allPersonas; // 実装を簡略化
+    
+    return allPersonas.filter(persona => {
+      // ペルソナがプロジェクトタイプをサポートしているかチェック
+      // ここでは activationTriggers の中で PROJECT_TYPE トリガーを持つペルソナを検索
+      const projectTypeTriggers = persona.activationTriggers.filter(trigger => 
+        trigger.type === TriggerType.PROJECT_TYPE
+      );
+      
+      if (projectTypeTriggers.length === 0) {
+        // プロジェクトタイプトリガーがない場合は汎用ペルソナとして扱う
+        return true;
+      }
+      
+      // プロジェクトタイプが一致するかチェック（大文字小文字を無視）
+      return projectTypeTriggers.some(trigger => {
+        if (typeof trigger.pattern === 'string') {
+          return trigger.pattern.toLowerCase() === projectType.toLowerCase();
+        } else if (trigger.pattern && typeof trigger.pattern.test === 'function') {
+          // RegExpオブジェクトまたはRegExp-likeオブジェクト
+          return trigger.pattern.test(projectType);
+        }
+        return false;
+      });
+    });
   }
 
   private getExpertiseLevelScore(level: ExpertiseLevel): number {
@@ -508,17 +552,153 @@ export class PersonaSelectionService {
     return [];
   }
 
+  /**
+   * 相互補完的なペルソナを選択
+   * 異なる専門分野、スキルセット、タイプを組み合わせる
+   */
   private selectComplementaryPersonas(candidates: PersonaCandidate[], maxPersonas: number): PersonaCandidate[] {
-    // 相互補完的なペルソナを選択
-    return candidates.slice(0, maxPersonas);
+    if (candidates.length === 0) return [];
+    if (candidates.length <= maxPersonas) return candidates;
+
+    const selected: PersonaCandidate[] = [];
+    const remaining = [...candidates];
+
+    // 1. 最も信頼度の高いペルソナから開始
+    selected.push(remaining.shift()!);
+
+    // 2. 残りのペルソナを補完性に基づいて選択
+    while (selected.length < maxPersonas && remaining.length > 0) {
+      let bestCandidate: PersonaCandidate | null = null;
+      let bestScore = -1;
+      let bestIndex = -1;
+
+      for (let i = 0; i < remaining.length; i++) {
+        const candidate = remaining[i];
+        const complementarityScore = this.calculateComplementarityScore(candidate, selected);
+        
+        // 信頼度と補完性のバランススコア
+        const balanceScore = (candidate.confidence * 0.4) + (complementarityScore * 0.6);
+        
+        if (balanceScore > bestScore) {
+          bestScore = balanceScore;
+          bestCandidate = candidate;
+          bestIndex = i;
+        }
+      }
+
+      if (bestCandidate) {
+        selected.push(bestCandidate);
+        remaining.splice(bestIndex, 1);
+      } else {
+        break;
+      }
+    }
+
+    return selected;
   }
 
-  private calculateCombinedConfidence(personas: PersonaCandidate[]): number {
-    if (personas.length === 0) return 0;
-    return personas.reduce((sum, p) => sum + p.confidence, 0) / personas.length;
+  /**
+   * 候補ペルソナの補完性スコアを計算
+   */
+  private calculateComplementarityScore(candidate: PersonaCandidate, selected: PersonaCandidate[]): number {
+    let complementarityScore = 0;
+    const weights = {
+      typeDiversity: 0.3,
+      expertiseDomainCoverage: 0.35,
+      technologyStackCoverage: 0.25,
+      expertiseLevelBalance: 0.1
+    };
+
+    // 1. タイプの多様性スコア
+    const selectedTypes = new Set(selected.map(s => s.persona.type));
+    const typeScore = selectedTypes.has(candidate.persona.type) ? 0 : 1;
+    complementarityScore += typeScore * weights.typeDiversity;
+
+    // 2. 専門ドメインのカバレッジスコア
+    const selectedDomains = new Set(
+      selected.flatMap(s => s.persona.expertise.map(e => e.domain))
+    );
+    const candidateDomains = new Set(candidate.persona.expertise.map(e => e.domain));
+    const newDomainCount = [...candidateDomains].filter(d => !selectedDomains.has(d)).length;
+    const domainScore = candidateDomains.size > 0 ? newDomainCount / candidateDomains.size : 0;
+    complementarityScore += domainScore * weights.expertiseDomainCoverage;
+
+    // 3. 技術スタックのカバレッジスコア
+    const selectedTechnologies = new Set(
+      selected.flatMap(s => 
+        s.persona.expertise.flatMap(e => e.technologies)
+      )
+    );
+    const candidateTechnologies = new Set(
+      candidate.persona.expertise.flatMap(e => e.technologies)
+    );
+    const newTechCount = [...candidateTechnologies].filter(t => !selectedTechnologies.has(t)).length;
+    const techScore = candidateTechnologies.size > 0 ? newTechCount / candidateTechnologies.size : 0;
+    complementarityScore += techScore * weights.technologyStackCoverage;
+
+    // 4. 専門レベルのバランススコア
+    const selectedLevels = selected.map(s => this.getAverageExpertiseLevel(s.persona));
+    const candidateLevel = this.getAverageExpertiseLevel(candidate.persona);
+    const levelVariance = this.calculateLevelVariance([...selectedLevels, candidateLevel]);
+    const currentVariance = selectedLevels.length > 1 ? this.calculateLevelVariance(selectedLevels) : 0;
+    const levelScore = levelVariance > currentVariance ? 1 : 0.5; // 多様性が増す場合に高スコア
+    complementarityScore += levelScore * weights.expertiseLevelBalance;
+
+    return Math.min(Math.max(complementarityScore, 0), 1);
   }
 
-  private generateEnsembleReasoning(personas: PersonaCandidate[]): string {
-    return `${personas.length}個のペルソナを組み合わせて選択`;
+  /**
+   * レベルの分散を計算（多様性の指標）
+   */
+  private calculateLevelVariance(levels: number[]): number {
+    if (levels.length <= 1) return 0;
+    
+    const mean = levels.reduce((sum, level) => sum + level, 0) / levels.length;
+    const variance = levels.reduce((sum, level) => sum + Math.pow(level - mean, 2), 0) / levels.length;
+    return Math.sqrt(variance);
+  }
+
+  /**
+   * アンサンブルの組み合わせ信頼度を計算
+   */
+  private calculateCombinedConfidence(selectedPersonas: PersonaCandidate[]): number {
+    if (selectedPersonas.length === 0) return 0;
+    if (selectedPersonas.length === 1) return selectedPersonas[0].confidence;
+
+    // 個々の信頼度の重み付き平均に多様性ボーナスを追加
+    const averageConfidence = selectedPersonas.reduce((sum, p) => sum + p.confidence, 0) / selectedPersonas.length;
+    
+    // 多様性ボーナス（異なるタイプの数に基づく）
+    const uniqueTypes = new Set(selectedPersonas.map(p => p.persona.type)).size;
+    const diversityBonus = (uniqueTypes - 1) * 0.05; // タイプが増えるごとに5%ボーナス
+    
+    return Math.min(averageConfidence + diversityBonus, 1);
+  }
+
+  /**
+   * アンサンブル選択の理由を生成
+   */
+  private generateEnsembleReasoning(selectedPersonas: PersonaCandidate[]): string {
+    if (selectedPersonas.length === 0) return 'ペルソナが選択されませんでした。';
+    if (selectedPersonas.length === 1) return `${selectedPersonas[0].persona.name} を単体で選択。`;
+
+    const personaNames = selectedPersonas.map(p => p.persona.name);
+    const personaTypes = [...new Set(selectedPersonas.map(p => p.persona.type))];
+    const averageConfidence = this.calculateCombinedConfidence(selectedPersonas);
+
+    const reasons = [
+      `${personaNames.join('、')} のアンサンブル`,
+      `タイプ: ${personaTypes.join('、')}`,
+      `組み合わせ信頼度: ${(averageConfidence * 100).toFixed(1)}%`
+    ];
+
+    // 主要な専門ドメインを抽出
+    const allDomains = selectedPersonas.flatMap(p => p.persona.expertise.map(e => e.domain));
+    const uniqueDomains = [...new Set(allDomains)].slice(0, 3); // 最初の3つのドメイン
+    if (uniqueDomains.length > 0) {
+      reasons.push(`専門分野: ${uniqueDomains.join('、')}`);
+    }
+
+    return reasons.join('、');
   }
 }

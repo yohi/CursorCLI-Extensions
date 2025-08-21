@@ -13,8 +13,8 @@ import {
   VerbosityLevel,
   DeepReadonly,
   BaseEntity,
-  Identifiable,
-  NonEmptyArray
+  NonEmptyArray,
+  isPersonaId
 } from './base.js';
 
 import { Command, ExecutionContext } from './commands.js';
@@ -23,8 +23,7 @@ import { Command, ExecutionContext } from './commands.js';
 // ペルソナ基本定義
 // ==========================================
 
-export interface AIPersona extends BaseEntity, Identifiable<PersonaId> {
-  readonly id: PersonaId;
+export interface AIPersona extends BaseEntity<PersonaId> {
   readonly name: string;
   readonly displayName: string;
   readonly description: string;
@@ -317,6 +316,8 @@ export interface PersonaInteraction {
   readonly timestamp: Timestamp;
   readonly commandId: CommandId;
   readonly personaId: PersonaId;
+  readonly sessionId: SessionId;
+  readonly userId: UserId;
   readonly duration: number;
   readonly success: boolean;
   readonly userSatisfaction?: number;
@@ -504,9 +505,7 @@ export type TemplateParameters = Record<string, unknown>;
 // 型ガード
 // ==========================================
 
-export function isPersonaId(value: unknown): value is PersonaId {
-  return typeof value === 'string' && /^persona_[a-zA-Z0-9]{12}$/.test(value);
-}
+
 
 export function isAIPersona(value: unknown): value is AIPersona {
   return (
@@ -539,6 +538,20 @@ function getExpertiseLevelOrder(level: ExpertiseLevel): number {
     [ExpertiseLevel.MASTER]: 5
   };
   return order[level] || 0;
+}
+
+// ==========================================
+// ペルソナ統計情報
+// ==========================================
+
+export interface PersonaStatistics {
+  readonly totalPersonas: number;
+  readonly activePersonas: number;
+  readonly archivedPersonas: number;
+  readonly personasByType: Record<PersonaType, number>;
+  readonly averageRating: number;
+  readonly totalUsage: number;
+  readonly lastUpdated: Timestamp;
 }
 
 // ==========================================
