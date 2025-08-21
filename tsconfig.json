@@ -4,8 +4,6 @@
     "module": "ESNext",
     "moduleResolution": "NodeNext",
     "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
