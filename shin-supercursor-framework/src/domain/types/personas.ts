@@ -432,7 +432,7 @@ export interface PersonaSelectionResult {
 
 export interface PersonaActivationResult {
   readonly success: boolean;
-  readonly persona: AIPersona;
+  readonly persona?: AIPersona;
   readonly confidence: number;
   readonly reasoning: string;
   readonly activationTime: number;
@@ -443,7 +443,7 @@ export interface PersonaActivationResult {
 export interface PersonaSwitchResult {
   readonly success: boolean;
   readonly previousPersona?: AIPersona;
-  readonly newPersona: AIPersona;
+  readonly newPersona?: AIPersona;
   readonly reason: string;
   readonly switchTime: number;
   readonly preservedContext?: unknown;

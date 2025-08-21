@@ -41,6 +41,7 @@ export interface PersonaManagerConfig {
 
 export class PersonaManagerImpl implements PersonaManager {
   private activeSessions = new Map<SessionId, PersonaId>();
+  private readonly logger = { error: console.error }; // Simple logger implementation
   
   private readonly defaultConfig: PersonaManagerConfig = {
     enableLearning: true,
@@ -436,14 +437,14 @@ export class PersonaManagerImpl implements PersonaManager {
     }
   }
 
-  private async getFallbackPersona(): Promise<AIPersona> {
-    const activePersonas = await this.personaRepository.findAllActive();
-    const fallback = activePersonas.find(p => p.type === 'developer') || activePersonas[0];
-    
-    if (!fallback) {
-      throw new FrameworkError('No fallback persona available');
+  private async getFallbackPersona(): Promise<AIPersona | undefined> {
+    try {
+      const activePersonas = await this.personaRepository.findAllActive();
+      const fallback = activePersonas.find(p => p.type === 'developer') || activePersonas[0];
+      return fallback;
+    } catch (error) {
+      this.logger.error(`Failed to get fallback persona: ${error.message}`);
+      return undefined;
     }
-
-    return fallback;
   }
 }
