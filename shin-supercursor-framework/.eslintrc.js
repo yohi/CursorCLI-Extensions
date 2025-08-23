@@ -34,13 +34,32 @@ module.exports = {
     '*.js'
   ],
   rules: {
+    // Base側は無効化して重複報告を防ぐ
+    'no-unused-vars': 'off',
+    'no-unused-expressions': 'off',
+    
     // TypeScript 厳格ルール
-    '@typescript-eslint/interface-name-prefix': 'off',
+    // Interface名からI*接頭辞を排除（PascalCaseのみ許可）
+    '@typescript-eslint/naming-convention': [
+      'error',
+      {
+        selector: 'interface',
+        format: ['PascalCase'],
+        custom: { regex: '^I[A-Z]', match: false }
+      }
+    ],
     '@typescript-eslint/explicit-function-return-type': 'error',
     '@typescript-eslint/explicit-module-boundary-types': 'error',
     '@typescript-eslint/no-explicit-any': 'warn',
-    '@typescript-eslint/no-unused-vars': 'error',
-    '@typescript-eslint/no-unused-expressions': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+      ignoreRestSiblings: true
+    }],
+    '@typescript-eslint/no-unused-expressions': ['error', {
+      allowShortCircuit: true,
+      allowTernary: true
+    }],
     '@typescript-eslint/prefer-readonly': 'error',
     '@typescript-eslint/prefer-readonly-parameter-types': 'off', // 厳しすぎるため無効
     '@typescript-eslint/strict-boolean-expressions': 'error',
