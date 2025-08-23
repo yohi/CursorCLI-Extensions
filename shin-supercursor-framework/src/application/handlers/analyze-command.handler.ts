@@ -292,8 +292,8 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
           }
         },
         performance: {
-          startTime: startTime as any,
-          endTime: Date.now() as any,
+          startTime: startTime as import('../../domain/types/base.js').Timestamp,
+          endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
           duration: executionTime
         }
       };
@@ -319,8 +319,8 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
         },
         errors: [new import('../../domain/types/index.js').CommandExecutionError(error.message)],
         performance: {
-          startTime: startTime as any,
-          endTime: Date.now() as any,
+          startTime: startTime as import('../../domain/types/base.js').Timestamp,
+          endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
           duration: executionTime
         }
       };
@@ -337,7 +337,12 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
       patterns: this.parseArrayOption(command.options.patterns),
       excludePatterns: this.parseArrayOption(command.options.exclude),
       outputFormat: command.options['output-format'] || 'text',
-      maxDepth: parseInt(command.options['max-depth']) || undefined,
+      maxDepth: (() => {
+        const maxDepthValue = command.options['max-depth'];
+        if (maxDepthValue === undefined || maxDepthValue === null) return undefined;
+        const parsed = Number.parseInt(String(maxDepthValue), 10);
+        return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+      })(),
       includeMetrics: command.options['include-metrics'] !== false
     };
   }

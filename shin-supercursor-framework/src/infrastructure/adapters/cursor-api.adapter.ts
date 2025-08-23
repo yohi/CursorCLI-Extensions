@@ -5,6 +5,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn, SpawnOptions } from 'child_process';
+import { promises as fsPromises } from 'fs';
 
 import {
   FrameworkError,
@@ -142,7 +143,7 @@ export class CursorApiAdapter {
         
         if (attempt < maxRetries) {
           const delay = this.calculateRetryDelay(attempt);
-          this.logger.warn(`Cursor command failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${error.message}`);
+          this.logger.warn(`Cursor command failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${lastError.message}`);
           await this.sleep(delay);
         }
       }
@@ -194,14 +195,13 @@ export class CursorApiAdapter {
     try {
       if (content !== undefined) {
         // ファイルに内容を書き込み
-        const fs = await import('fs/promises');
-        await fs.writeFile(filePath, content, { encoding: options.encoding || 'utf8' });
+        await fsPromises.writeFile(filePath, content, { encoding: options.encoding || 'utf8' });
       }
       
       // Cursorでファイルを開く
       return this.openFile(filePath, options);
     } catch (error) {
-      throw new CursorApiError(`Failed to create file: ${error.message}`);
+      throw new CursorApiError(`Failed to create file: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -231,7 +231,7 @@ export class CursorApiAdapter {
     } catch (error) {
       return {
         available: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -263,13 +263,14 @@ export class CursorApiAdapter {
       let stdout = '';
       let stderr = '';
       let timedOut = false;
+      let killTimeoutId: NodeJS.Timeout | undefined;
 
       // タイムアウト設定
       const timeoutId = setTimeout(() => {
         timedOut = true;
         child.kill('SIGTERM');
         
-        setTimeout(() => {
+        killTimeoutId = setTimeout(() => {
           if (!child.killed) {
             child.kill('SIGKILL');
           }
@@ -292,6 +293,7 @@ export class CursorApiAdapter {
       // エラーハンドリング
       child.on('error', (error) => {
         clearTimeout(timeoutId);
+        if (killTimeoutId) clearTimeout(killTimeoutId);
         
         if (error.message.includes('ENOENT')) {
           reject(new CursorNotFoundError(`Cursor executable not found: ${this.config.cursorPath}`));
@@ -303,6 +305,7 @@ export class CursorApiAdapter {
       // プロセス終了時の処理
       child.on('close', (code, signal) => {
         clearTimeout(timeoutId);
+        if (killTimeoutId) clearTimeout(killTimeoutId);
         
         if (timedOut) {
           reject(new CursorTimeoutError(`Command timed out after ${timeout}ms`));

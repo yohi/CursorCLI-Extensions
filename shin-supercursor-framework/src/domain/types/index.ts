@@ -27,41 +27,82 @@ export * from './context.js';
 // 統合型定義の名前空間
 // ==========================================
 
+// Import types for namespace declarations
+import type { 
+  Command as CommandType, 
+  CommandResult as CommandResultType 
+} from './commands.js';
+import type { 
+  AIPersona as AIPersonaType 
+} from './personas.js';
+import type { 
+  ProjectContext as ProjectContextType,
+  UserContext as UserContextType,
+  SessionContext as SessionContextType 
+} from './context.js';
+import type {
+  CommandId as CommandIdType,
+  PersonaId as PersonaIdType,
+  SessionId as SessionIdType,
+  UserId as UserIdType,
+  ProjectId as ProjectIdType,
+  Timestamp as TimestampType,
+  DeepReadonly as DeepReadonlyType,
+  Optional as OptionalType,
+  NonEmptyArray as NonEmptyArrayType,
+  Result as ResultType
+} from './base.js';
+
+// Import error classes for runtime access
+import {
+  FrameworkError,
+  ConfigurationError,
+  ValidationError,
+  CommandExecutionError,
+  PersonaSelectionError,
+  CacheError,
+  SecurityError
+} from './base.js';
+
 /**
  * SuperCursor Framework の主要な型定義を含む名前空間
  * 型安全性とコードの整理を向上させるために使用
  */
 export namespace SuperCursor {
   // Framework-1 インターフェース継承
-  export interface Command extends import('./commands.js').Command {}
-  export interface CommandResult extends import('./commands.js').CommandResult {}
-  export interface AIPersona extends import('./personas.js').AIPersona {}
-  export interface ProjectContext extends import('./context.js').ProjectContext {}
-  export interface UserContext extends import('./context.js').UserContext {}
-  export interface SessionContext extends import('./context.js').SessionContext {}
+  export type Command = CommandType;
+  export type CommandResult = CommandResultType;
+  export type AIPersona = AIPersonaType;
+  export type ProjectContext = ProjectContextType;
+  export type UserContext = UserContextType;
+  export type SessionContext = SessionContextType;
 
   // ブランド型
-  export type CommandId = import('./base.js').CommandId;
-  export type PersonaId = import('./base.js').PersonaId;
-  export type SessionId = import('./base.js').SessionId;
-  export type UserId = import('./base.js').UserId;
-  export type ProjectId = import('./base.js').ProjectId;
-  export type Timestamp = import('./base.js').Timestamp;
+  export type CommandId = CommandIdType;
+  export type PersonaId = PersonaIdType;
+  export type SessionId = SessionIdType;
+  export type UserId = UserIdType;
+  export type ProjectId = ProjectIdType;
+  export type Timestamp = TimestampType;
 
   // ユーティリティ型
-  export type DeepReadonly<T> = import('./base.js').DeepReadonly<T>;
-  export type Optional<T, K extends keyof T> = import('./base.js').Optional<T, K>;
-  export type NonEmptyArray<T> = import('./base.js').NonEmptyArray<T>;
-  export type Result<T, E = Error> = import('./base.js').Result<T, E>;
+  export type DeepReadonly<T> = DeepReadonlyType<T>;
+  export type Optional<T, K extends keyof T> = OptionalType<T, K>;
+  export type NonEmptyArray<T> = NonEmptyArrayType<T>;
+  export type Result<T, E = Error> = ResultType<T, E>;
+}
 
-  // エラークラス
-  export const FrameworkError = import('./base.js').FrameworkError;
-  export const ConfigurationError = import('./base.js').ConfigurationError;
-  export const ValidationError = import('./base.js').ValidationError;
-  export const CommandExecutionError = import('./base.js').CommandExecutionError;
-  export const PersonaSelectionError = import('./base.js').PersonaSelectionError;
-  export const CacheError = import('./base.js').CacheError;
-  export const SecurityError = import('./base.js').SecurityError;
+// Export error classes under namespace
+export namespace SuperCursor {
+  export const Errors = {
+    FrameworkError,
+    ConfigurationError,
+    ValidationError,
+    CommandExecutionError,
+    PersonaSelectionError,
+    CacheError,
+    SecurityError
+  };
 }
 
 /**
@@ -113,23 +154,39 @@ export namespace Infrastructure {
   export type MaintainabilityRating = import('./context.js').MaintainabilityRating;
 }
 
+// Import application layer types
+import type {
+  CommandHandler as CommandHandlerType,
+  CommandRouter as CommandRouterType,
+  CommandExecutionEngine as CommandExecutionEngineType
+} from './commands.js';
+import type {
+  PersonaManager as PersonaManagerType,
+  PersonaFactory as PersonaFactoryType,
+  PersonaSelectionResult as PersonaSelectionResultType,
+  PersonaActivationResult as PersonaActivationResultType
+} from './personas.js';
+import type {
+  ValidationResult as ValidationResultType
+} from './base.js';
+
 /**
  * アプリケーション層で使用される型定義
  */
 export namespace Application {
   // コマンド処理関連
-  export interface CommandHandler extends import('./commands.js').CommandHandler {}
-  export interface CommandRouter extends import('./commands.js').CommandRouter {}
-  export interface CommandExecutionEngine extends import('./commands.js').CommandExecutionEngine {}
+  export type CommandHandler = CommandHandlerType;
+  export type CommandRouter = CommandRouterType;
+  export type CommandExecutionEngine = CommandExecutionEngineType;
   
   // ペルソナ管理関連
-  export interface PersonaManager extends import('./personas.js').PersonaManager {}
-  export interface PersonaFactory extends import('./personas.js').PersonaFactory {}
+  export type PersonaManager = PersonaManagerType;
+  export type PersonaFactory = PersonaFactoryType;
   
   // 結果型
-  export interface ValidationResult extends import('./base.js').ValidationResult {}
-  export interface PersonaSelectionResult extends import('./personas.js').PersonaSelectionResult {}
-  export interface PersonaActivationResult extends import('./personas.js').PersonaActivationResult {}
+  export type ValidationResult = ValidationResultType;
+  export type PersonaSelectionResult = PersonaSelectionResultType;
+  export type PersonaActivationResult = PersonaActivationResultType;
 }
 
 /**
@@ -157,28 +214,31 @@ export {
   isSessionId,
   isUserId,
   isTimestamp,
-  isNonEmptyArray,
-  
-  // エンティティ型チェック
-  isCommandResult,
-  isAIPersona,
-  isProjectContext,
-  isUserContext,
-  isSessionContext,
-  
-  // コマンド型チェック
-  isAnalyzeCommand,
-  isImplementCommand,
-  isBuildCommand,
-  
-  // ペルソナ型チェック
-  hasCapability,
-  hasExpertise
+  isNonEmptyArray
 } from './base.js';
 
 export {
+  // コマンド型チェック
+  isCommandResult,
+  isAnalyzeCommand,
+  isImplementCommand,
+  isBuildCommand
+} from './commands.js';
+
+export {
+  // ペルソナ型チェック
+  isAIPersona,
+  hasCapability,
+  hasExpertise,
   calculatePersonaMatch
 } from './personas.js';
+
+export {
+  // コンテキスト型チェック
+  isProjectContext,
+  isUserContext,
+  isSessionContext
+} from './context.js';
 
 // ==========================================
 // ファクトリー関数の再エクスポート

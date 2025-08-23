@@ -12,7 +12,18 @@ import {
   PersonaSelectionError
 } from '../../domain/types/index.js';
 
+import {
+  PersonaSelectionResult,
+  AIPersona
+} from '../../domain/types/personas.js';
+
+import {
+  ExecutionContext
+} from '../../domain/types/commands.js';
+
 import { ExecuteSupercursorCommand } from './execute-supercursor.command.js';
+import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
+import { CommandRoutingService } from '../../domain/services/command-routing.service.js';
 
 /**
  * SuperCursorコマンド実行ハンドラー
@@ -29,12 +40,19 @@ export class ExecuteSupercursorHandler
 
   private readonly logger = new Logger(ExecuteSupercursorHandler.name);
 
+  /**
+   * エラーオブジェクトを正規化してError-likeオブジェクトに変換する
+   */
+  private normalizeError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+
   constructor(
     @Inject('PERSONA_SERVICE')
-    private readonly personaService: any, // TODO: 正しい型に置き換え
+    private readonly personaService: PersonaSelectionService,
     
     @Inject('COMMAND_ROUTER')
-    private readonly commandRouter: any, // TODO: 正しい型に置き換え
+    private readonly commandRouter: CommandRoutingService,
     
     private readonly eventBus: EventBus
   ) {}
@@ -73,17 +91,19 @@ export class ExecuteSupercursorHandler
 
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
       const duration = Date.now() - startTime;
-      this.logger.error(`Command execution failed after ${duration}ms: ${error.message}`, error.stack);
+      this.logger.error(`Command execution failed after ${duration}ms: ${normalized.message}`, normalized.stack);
       
       // エラーイベントを発行
-      await this.publishErrorEvent(command, error);
+      await this.publishErrorEvent(command, normalized);
       
-      throw new CommandExecutionError(error.message, {
+      throw new CommandExecutionError(normalized.message, {
         commandId: command.id,
         sessionId: command.sessionId,
-        duration
+        duration,
+        originalError: normalized.stack
       });
     }
   }
@@ -91,7 +111,7 @@ export class ExecuteSupercursorHandler
   /**
    * コンテキストを分析する
    */
-  private async analyzeContext(command: ExecuteSupercursorCommand) {
+  private async analyzeContext(command: ExecuteSupercursorCommand): Promise<ExecutionContext> {
     // Framework-1 の ContextAnalyzer 統合
     // 実際の実装では、プロジェクト構造、技術スタック、ユーザー履歴などを分析
     return {
@@ -100,17 +120,14 @@ export class ExecuteSupercursorHandler
       user: command.executionContext.user,
       project: command.executionContext.project,
       environment: command.executionContext.environment,
-      commandHistory: [], // TODO: セッション履歴から取得
-      userExperience: 'intermediate', // TODO: ユーザープロファイルから算出
-      projectComplexity: 'medium', // TODO: プロジェクト分析から算出
-      timeOfDay: new Date().getHours()
+      persona: command.executionContext.persona
     };
   }
 
   /**
    * 適切なペルソナを選択する
    */
-  private async selectPersona(context: any) {
+  private async selectPersona(context: ExecutionContext): Promise<PersonaSelectionResult> {
     try {
       if (!this.personaService) {
         return {
@@ -124,9 +141,10 @@ export class ExecuteSupercursorHandler
 
       return await this.personaService.selectPersona(context);
       
-    } catch (error) {
-      this.logger.error(`Persona selection failed: ${error.message}`, error.stack);
-      throw new PersonaSelectionError(`ペルソナ選択に失敗しました: ${error.message}`);
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
+      this.logger.error(`Persona selection failed: ${normalized.message}`, normalized.stack);
+      throw new PersonaSelectionError(`ペルソナ選択に失敗しました: ${normalized.message}`);
     }
   }
 
@@ -135,8 +153,8 @@ export class ExecuteSupercursorHandler
    */
   private async executeCommand(
     command: ExecuteSupercursorCommand,
-    context: any,
-    persona?: any
+    context: ExecutionContext,
+    persona?: AIPersona
   ): Promise<CommandResult> {
     
     if (!this.commandRouter) {
@@ -170,17 +188,19 @@ export class ExecuteSupercursorHandler
           }
         },
         performance: {
-          startTime: command.timestamp as any,
-          endTime: Date.now() as any,
-          duration: Date.now() - command.timestamp
+          startTime: command.timestamp as import('../../domain/types/base.js').Timestamp,
+          endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
+          duration: Math.max(0, Date.now() - command.timestamp)
         }
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
       // 実行エラーを適切にラップ
-      throw new CommandExecutionError(`コマンド実行エラー: ${error.message}`, {
+      throw new CommandExecutionError(`コマンド実行エラー: ${normalized.message}`, {
         commandName: command.parsedCommand.name,
-        personaId: persona?.id
+        personaId: persona?.id,
+        originalError: normalized.stack
       });
     }
   }
@@ -208,8 +228,9 @@ export class ExecuteSupercursorHandler
       // 暫定的にログ出力
       this.logger.log(`Event published: command executed`, 'EventBus');
       
-    } catch (error) {
-      this.logger.error(`Failed to publish execution event: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
+      this.logger.error(`Failed to publish execution event: ${normalized.message}`, normalized.stack);
       // イベント発行の失敗はコマンド実行の失敗として扱わない
     }
   }
@@ -239,8 +260,9 @@ export class ExecuteSupercursorHandler
       // 暫定的にログ出力
       this.logger.error(`Event published: command failed`, 'EventBus');
       
-    } catch (eventError) {
-      this.logger.error(`Failed to publish error event: ${eventError.message}`, eventError.stack);
+    } catch (eventError: unknown) {
+      const normalized = this.normalizeError(eventError);
+      this.logger.error(`Failed to publish error event: ${normalized.message}`, normalized.stack);
     }
   }
 }
