@@ -2,7 +2,7 @@
   "name": "shin-supercursor-framework",
   "version": "1.0.0",
   "description": "Unified SuperCursor Framework - Framework-1 design + Framework-2 implementation with NestJS best practices",
-  "type": "module",
+  "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -35,7 +35,7 @@
     "ci": "npm run validate && npm run build",
     "docs:generate": "typedoc --out docs src",
     "docs:serve": "http-server docs -p 8080",
-    "prepare": "husky install"
+    "prepare": "husky install || exit 0"
   },
   "keywords": [
     "nestjs",
