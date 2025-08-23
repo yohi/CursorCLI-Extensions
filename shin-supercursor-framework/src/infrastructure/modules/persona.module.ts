@@ -99,23 +99,7 @@ export interface PersonaModuleOptions {
       }
     },
     
-    // デフォルトオプション + 設定プロバイダー（forRoot/Async で上書き可能）
-    {
-      provide: 'PERSONA_MODULE_OPTIONS',
-      useValue: {},
-    },
-    {
-      provide: 'PERSONA_MANAGEMENT_CONFIG',
-      useFactory: (opts: PersonaModuleOptions) => ({
-        maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
-        selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
-        enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
-        enableCaching: opts.enableCaching ?? (process.env.PERSONA_ENABLE_CACHING !== 'false'),
-        cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000', 10),
-        enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false',
-      }),
-      inject: ['PERSONA_MODULE_OPTIONS'],
-    }
+    // 設定プロバイダーは forRoot/forRootAsync でのみ提供
   ],
   
   exports: [
@@ -139,6 +123,18 @@ export class PersonaModule {
         {
           provide: 'PERSONA_MODULE_OPTIONS',
           useValue: options
+        },
+        {
+          provide: 'PERSONA_MANAGEMENT_CONFIG',
+          useFactory: (opts: PersonaModuleOptions) => ({
+            maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
+            selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
+            enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
+            enableCaching: opts.enableCaching ?? (process.env.PERSONA_ENABLE_CACHING !== 'false'),
+            cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000', 10),
+            enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false',
+          }),
+          inject: ['PERSONA_MODULE_OPTIONS'],
         }
       ]
     };
@@ -158,6 +154,18 @@ export class PersonaModule {
           provide: 'PERSONA_MODULE_OPTIONS',
           useFactory: options.useFactory,
           inject: options.inject || []
+        },
+        {
+          provide: 'PERSONA_MANAGEMENT_CONFIG',
+          useFactory: async (opts: PersonaModuleOptions) => ({
+            maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
+            selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
+            enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
+            enableCaching: opts.enableCaching ?? (process.env.PERSONA_ENABLE_CACHING !== 'false'),
+            cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000', 10),
+            enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false',
+          }),
+          inject: ['PERSONA_MODULE_OPTIONS'],
         }
       ]
     };

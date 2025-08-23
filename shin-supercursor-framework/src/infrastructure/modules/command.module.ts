@@ -51,22 +51,7 @@ export interface CommandModuleOptions {
     // BuildCommandHandler,
     // DesignCommandHandler,
     
-    // デフォルトオプション + 設定プロバイダー（forRoot/forRootAsync で上書き可能）
-    {
-      provide: 'COMMAND_MODULE_OPTIONS',
-      useValue: {},
-    },
-    {
-      provide: 'COMMAND_ROUTING_CONFIG',
-      useFactory: (options: CommandModuleOptions) => ({
-        enableValidation: options.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
-        enableCaching: options.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
-        enableMetrics: options.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
-        defaultTimeout: options.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
-        maxConcurrentCommands: options.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
-      }),
-      inject: ['COMMAND_MODULE_OPTIONS'],
-    },
+    // 設定プロバイダーは forRoot/forRootAsync でのみ提供
     
     // コマンドルーター実装
     {
@@ -103,6 +88,17 @@ export class CommandModule {
         {
           provide: 'COMMAND_MODULE_OPTIONS',
           useValue: options
+        },
+        {
+          provide: 'COMMAND_ROUTING_CONFIG',
+          useFactory: (opts: CommandModuleOptions) => ({
+            enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
+            enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
+            enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
+            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
+            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
+          }),
+          inject: ['COMMAND_MODULE_OPTIONS'],
         }
       ]
     };
@@ -122,6 +118,17 @@ export class CommandModule {
           provide: 'COMMAND_MODULE_OPTIONS',
           useFactory: options.useFactory,
           inject: options.inject || []
+        },
+        {
+          provide: 'COMMAND_ROUTING_CONFIG',
+          useFactory: async (opts: CommandModuleOptions) => ({
+            enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
+            enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
+            enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
+            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
+            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
+          }),
+          inject: ['COMMAND_MODULE_OPTIONS'],
         }
       ]
     };
