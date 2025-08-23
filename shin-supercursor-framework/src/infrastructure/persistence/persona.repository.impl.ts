@@ -125,7 +125,7 @@ export class PersonaInteractionEntity {
   @Column()
   success: boolean;
 
-  @Column('decimal', { precision: 3, scale: 2, nullable: true })
+  @Column('decimal', { precision: 5, scale: 2, nullable: true })
   userSatisfaction: number | null;
 
   @CreateDateColumn()
@@ -192,7 +192,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return entity ? this.mapEntityToDomain(entity) : null;
     } catch (error) {
-      this.logger.error(`Failed to find persona by ID: ${id}`, error.stack);
+      this.logger.error(`Failed to find persona by ID: ${id}`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find persona: ${error.message}`, 'findById', id);
     }
   }
@@ -205,7 +205,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return entities.map(entity => this.mapEntityToDomain(entity));
     } catch (error) {
-      this.logger.error(`Failed to find personas by IDs`, error.stack);
+      this.logger.error(`Failed to find personas by IDs`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find personas: ${error.message}`, 'findByIds');
     }
   }
@@ -261,7 +261,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return results;
     } catch (error) {
-      this.logger.error(`Failed to find personas by filter`, error.stack);
+      this.logger.error(`Failed to find personas by filter`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find personas: ${error.message}`, 'findByFilter');
     }
   }
@@ -281,9 +281,11 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       let personas = entities.map(entity => this.mapEntityToDomain(entity));
 
-      // フィルタを適用
+      // フィルタを適用（既存の検索結果に対して）
       if (query.filters) {
-        personas = await this.findByFilter(query.filters) as AIPersona[];
+        const filteredPersonas = await this.findByFilter(query.filters) as AIPersona[];
+        const filteredIds = new Set(filteredPersonas.map(p => p.id));
+        personas = personas.filter(p => filteredIds.has(p.id));
       }
 
       // 検索結果をマップ
@@ -293,7 +295,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
         matchedFields: this.getMatchedFields(persona, query.query)
       }));
     } catch (error) {
-      this.logger.error(`Failed to search personas`, error.stack);
+      this.logger.error(`Failed to search personas`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to search personas: ${error.message}`, 'search');
     }
   }
@@ -307,7 +309,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return entities.map(entity => this.mapEntityToDomain(entity));
     } catch (error) {
-      this.logger.error(`Failed to find active personas`, error.stack);
+      this.logger.error(`Failed to find active personas`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find active personas: ${error.message}`, 'findAllActive');
     }
   }
@@ -324,7 +326,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
         )
       );
     } catch (error) {
-      this.logger.error(`Failed to find personas by technology: ${technology}`, error.stack);
+      this.logger.error(`Failed to find personas by technology: ${technology}`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find personas by technology: ${error.message}`, 'findByTechnology');
     }
   }
@@ -339,7 +341,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
         )
       );
     } catch (error) {
-      this.logger.error(`Failed to find personas by domain: ${domain}`, error.stack);
+      this.logger.error(`Failed to find personas by domain: ${domain}`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find personas by domain: ${error.message}`, 'findByExpertiseDomain');
     }
   }
@@ -353,7 +355,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return entities.map(entity => this.mapEntityToDomain(entity));
     } catch (error) {
-      this.logger.error(`Failed to find personas by type: ${type}`, error.stack);
+      this.logger.error(`Failed to find personas by type: ${type}`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to find personas by type: ${error.message}`, 'findByType');
     }
   }
@@ -373,9 +375,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       const entity = this.personaRepository.create({
         id,
-        ...this.mapDomainToEntity(persona as AIPersona),
-        createdAt: new Date(),
-        updatedAt: new Date()
+        ...this.mapDomainToEntity({ ...persona, id } as AIPersona)
       });
 
       const saved = await this.personaRepository.save(entity);
@@ -384,7 +384,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
       if (error instanceof PersonaDuplicateError) {
         throw error;
       }
-      this.logger.error(`Failed to create persona`, error.stack);
+      this.logger.error(`Failed to create persona`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to create persona: ${error.message}`, 'create');
     }
   }
@@ -413,7 +413,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
       if (error instanceof PersonaNotFoundError) {
         throw error;
       }
-      this.logger.error(`Failed to update persona: ${id}`, error.stack);
+      this.logger.error(`Failed to update persona: ${id}`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to update persona: ${error.message}`, 'update', id);
     }
   }
@@ -423,7 +423,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
       const result = await this.personaRepository.delete(id as string);
       return result.affected !== undefined && result.affected > 0;
     } catch (error) {
-      this.logger.error(`Failed to delete persona: ${id}`, error.stack);
+      this.logger.error(`Failed to delete persona: ${id}`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to delete persona: ${error.message}`, 'delete', id);
     }
   }
@@ -435,7 +435,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
       });
       return count > 0;
     } catch (error) {
-      this.logger.error(`Failed to check persona existence: ${id}`, error.stack);
+      this.logger.error(`Failed to check persona existence: ${id}`, error instanceof Error ? error.stack : error);
       return false;
     }
   }
@@ -458,7 +458,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return await this.personaRepository.count({ where });
     } catch (error) {
-      this.logger.error(`Failed to count personas`, error.stack);
+      this.logger.error(`Failed to count personas`, error instanceof Error ? error.stack : error);
       return 0;
     }
   }
@@ -474,7 +474,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
         lastUpdated: new Date()
       } as any;
     } catch (error) {
-      this.logger.error(`Failed to get statistics`, error.stack);
+      this.logger.error(`Failed to get statistics`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to get statistics: ${error.message}`, 'getStatistics');
     }
   }
@@ -496,7 +496,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       await this.interactionRepository.save(entity);
     } catch (error) {
-      this.logger.error(`Failed to save interaction`, error.stack);
+      this.logger.error(`Failed to save interaction`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to save interaction: ${error.message}`, 'saveInteraction');
     }
   }
@@ -516,7 +516,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       await this.feedbackRepository.save(entity);
     } catch (error) {
-      this.logger.error(`Failed to save feedback`, error.stack);
+      this.logger.error(`Failed to save feedback`, error instanceof Error ? error.stack : error);
       throw new PersonaRepositoryError(`Failed to save feedback: ${error.message}`, 'saveFeedback');
     }
   }
@@ -530,7 +530,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return entities.map(entity => this.mapInteractionEntityToDomain(entity));
     } catch (error) {
-      this.logger.error(`Failed to get session history`, error.stack);
+      this.logger.error(`Failed to get session history`, error instanceof Error ? error.stack : error);
       return [];
     }
   }
@@ -545,14 +545,48 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       return entities.map(entity => this.mapInteractionEntityToDomain(entity));
     } catch (error) {
-      this.logger.error(`Failed to get user history`, error.stack);
+      this.logger.error(`Failed to get user history`, error instanceof Error ? error.stack : error);
       return [];
     }
   }
 
-  // その他のメソッドは簡略化実装
   async getPopularPersonas(limit: number = 10): Promise<readonly { persona: AIPersona; usageCount: number; averageRating: number; }[]> {
-    return [];
+    try {
+      // インタラクション数による人気ペルソナの計算
+      const popularPersonaQuery = `
+        SELECT 
+          p.id,
+          COUNT(i.id) as usage_count,
+          COALESCE(AVG(f.rating), 0) as average_rating
+        FROM personas p
+        LEFT JOIN persona_interactions i ON p.id = i.persona_id
+        LEFT JOIN persona_feedbacks f ON p.id = f.persona_id
+        WHERE p.active = true
+        GROUP BY p.id
+        HAVING COUNT(i.id) > 0
+        ORDER BY COUNT(i.id) DESC, COALESCE(AVG(f.rating), 0) DESC
+        LIMIT ?
+      `;
+
+      const results = await this.personaRepository.query(popularPersonaQuery, [limit]);
+      const popularPersonas: { persona: AIPersona; usageCount: number; averageRating: number; }[] = [];
+
+      for (const result of results) {
+        const persona = await this.findById(result.id);
+        if (persona) {
+          popularPersonas.push({
+            persona,
+            usageCount: parseInt(result.usage_count),
+            averageRating: parseFloat(result.average_rating) || 0
+          });
+        }
+      }
+
+      return popularPersonas;
+    } catch (error) {
+      this.logger.error(`Failed to get popular personas`, error instanceof Error ? error.stack : error);
+      return [];
+    }
   }
 
   async getRecommendedPersonas(userId: UserId, limit: number = 5): Promise<readonly AIPersona[]> {
@@ -564,11 +598,13 @@ export class PersonaRepositoryImpl extends PersonaRepository {
   }
 
   async createMany(personas: readonly Omit<AIPersona, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<readonly AIPersona[]> {
-    const results: AIPersona[] = [];
-    for (const persona of personas) {
-      results.push(await this.create(persona));
-    }
-    return results;
+    return await this.transaction(async () => {
+      const results: AIPersona[] = [];
+      for (const persona of personas) {
+        results.push(await this.create(persona));
+      }
+      return results;
+    });
   }
 
   async updateMany(updates: readonly { id: PersonaId; data: Partial<AIPersona>; }[]): Promise<readonly AIPersona[]> {
@@ -596,7 +632,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
   async archive(id: PersonaId): Promise<boolean> {
     try {
-      await this.update(id, { configuration: { ...{}, active: false } } as any);
+      await this.personaRepository.update(id as string, { active: false, updatedAt: new Date() });
       return true;
     } catch {
       return false;
@@ -605,7 +641,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
   async unarchive(id: PersonaId): Promise<boolean> {
     try {
-      await this.update(id, { configuration: { ...{}, active: true } } as any);
+      await this.personaRepository.update(id as string, { active: true, updatedAt: new Date() });
       return true;
     } catch {
       return false;
@@ -652,7 +688,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
       responseStyle: domain.responseStyle,
       configuration: domain.configuration,
       metadata: domain.metadata,
-      active: domain.configuration.active
+      active: domain.configuration?.active ?? true
     };
   }
 
