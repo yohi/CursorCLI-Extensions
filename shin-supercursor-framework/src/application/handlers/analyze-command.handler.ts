@@ -16,7 +16,8 @@ import {
   ParsedCommand,
   ParameterType,
   CommandCategory,
-  isAnalyzeCommand
+  isAnalyzeCommand,
+  CommandExecutionError
 } from '../../domain/types/index.js';
 
 /**
@@ -317,7 +318,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
             networkIO: 0
           }
         },
-        errors: [new import('../../domain/types/index.js').CommandExecutionError(error.message)],
+        errors: [new CommandExecutionError(error.message)],
         performance: {
           startTime: startTime as import('../../domain/types/base.js').Timestamp,
           endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
