@@ -32,18 +32,14 @@ export type {
   PersonaConfiguration,
   SecurityConfiguration,
   PerformanceConfiguration,
-  FrameworkInitOptions,
-  SuperCursorModuleOptions
+  FrameworkInitOptions
 } from './domain/entities/framework.entity.js';
 
+export type { SuperCursorModuleOptions } from './supercursor.module.js';
+
 // ==========================================
-// 定数・設定
+// 定数・設定（※ワイルドカードエクスポートに含まれるため個別指定不要）
 // ==========================================
-export {
-  FRAMEWORK_CONSTANTS,
-  ERROR_CODES,
-  EVENT_NAMES
-} from './domain/types/index.js';
 
 // ==========================================
 // バージョン情報

@@ -51,17 +51,7 @@ export interface CommandModuleOptions {
     // BuildCommandHandler,
     // DesignCommandHandler,
     
-    // 設定プロバイダー
-    {
-      provide: 'COMMAND_ROUTING_CONFIG',
-      useFactory: () => ({
-        enableValidation: process.env.COMMAND_ENABLE_VALIDATION !== 'false',
-        enableCaching: process.env.COMMAND_ENABLE_CACHING !== 'false',
-        enableMetrics: process.env.COMMAND_ENABLE_METRICS !== 'false',
-        defaultTimeout: parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000'),
-        maxConcurrentCommands: parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10')
-      })
-    },
+    // 設定プロバイダーは forRoot/forRootAsync でのみ提供
     
     // コマンドルーター実装
     {
@@ -101,13 +91,14 @@ export class CommandModule {
         },
         {
           provide: 'COMMAND_ROUTING_CONFIG',
-          useFactory: () => ({
-            enableValidation: options.enableValidation ?? true,
-            enableCaching: options.enableCaching ?? true,
-            enableMetrics: options.enableMetrics ?? true,
-            defaultTimeout: options.defaultTimeout || 30000,
-            maxConcurrentCommands: options.maxConcurrentCommands || 10
-          })
+          useFactory: (opts: CommandModuleOptions) => ({
+            enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
+            enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
+            enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
+            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
+            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
+          }),
+          inject: ['COMMAND_MODULE_OPTIONS'],
         }
       ]
     };
@@ -130,14 +121,14 @@ export class CommandModule {
         },
         {
           provide: 'COMMAND_ROUTING_CONFIG',
-          useFactory: async (moduleOptions: CommandModuleOptions) => ({
-            enableValidation: moduleOptions.enableValidation ?? true,
-            enableCaching: moduleOptions.enableCaching ?? true,
-            enableMetrics: moduleOptions.enableMetrics ?? true,
-            defaultTimeout: moduleOptions.defaultTimeout || 30000,
-            maxConcurrentCommands: moduleOptions.maxConcurrentCommands || 10
+          useFactory: async (opts: CommandModuleOptions) => ({
+            enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
+            enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
+            enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
+            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
+            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
           }),
-          inject: ['COMMAND_MODULE_OPTIONS']
+          inject: ['COMMAND_MODULE_OPTIONS'],
         }
       ]
     };

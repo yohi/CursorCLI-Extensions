@@ -6,6 +6,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 
 import { SuperCursorModule } from './supercursor.module.js';
 
@@ -20,6 +21,20 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(SuperCursorModule, {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
+
+    // セキュリティヘッダーの設定（Helmet）
+    app.use(helmet({
+      contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+      crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
+      hsts: process.env.NODE_ENV === 'production' ? {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      } : false
+    }));
+
+    // シャットダウンフックの有効化
+    app.enableShutdownHooks();
 
     // グローバルパイプの設定
     app.useGlobalPipes(
@@ -65,28 +80,32 @@ async function bootstrap(): Promise<void> {
       logger.log('Swagger documentation available at /api/docs');
     }
 
-    // ヘルスチェックエンドポイントの設定
-    app.getHttpAdapter().get('/health', (req, res) => {
-      res.status(200).json({
+    // ヘルスチェックエンドポイントの設定（Express/Fastify両対応）
+    const http = app.getHttpAdapter();
+    http.get('/health', (req, res) => {
+      http.reply(res, {
         status: 'ok',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         version: process.env.npm_package_version || '1.0.0',
-      });
+      }, 200);
     });
 
-    // メトリクスエンドポイントの設定
-    app.getHttpAdapter().get('/metrics', (req, res) => {
-      res.status(200).json({
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        cpu: process.cpuUsage(),
-        version: process.env.npm_package_version || '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
+    // メトリクスエンドポイントの設定（本番環境は環境変数で明示有効化）
+    if (process.env.NODE_ENV !== 'production' || process.env.EXPOSE_METRICS === 'true') {
+      const http = app.getHttpAdapter();
+      http.get('/metrics', (req, res) => {
+        http.reply(res, {
+          timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+          cpu: process.cpuUsage(),
+          version: process.env.npm_package_version || '1.0.0',
+          environment: process.env.NODE_ENV || 'development',
+        }, 200);
       });
-    });
+    }
 
     // アプリケーション起動
     const port = process.env.PORT || 3000;
@@ -94,20 +113,24 @@ async function bootstrap(): Promise<void> {
 
     logger.log(`🚀 SuperCursor Framework is running on port ${port}`);
     logger.log(`📖 Health check: http://localhost:${port}/health`);
-    logger.log(`📊 Metrics: http://localhost:${port}/metrics`);
+    
+    // メトリクスエンドポイントが登録されている場合のみログ出力
+    if (process.env.NODE_ENV !== 'production' || process.env.EXPOSE_METRICS === 'true') {
+      logger.log(`📊 Metrics: http://localhost:${port}/metrics`);
+    }
     
     if (process.env.NODE_ENV !== 'production') {
       logger.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
     }
 
-    // グレースフルシャットダウンの設定
-    process.on('SIGTERM', async () => {
+    // グレースフルシャットダウンの設定（重複ハンドラー防止のためprocess.once使用）
+    process.once('SIGTERM', async () => {
       logger.log('SIGTERM received, shutting down gracefully...');
       await app.close();
       process.exit(0);
     });
 
-    process.on('SIGINT', async () => {
+    process.once('SIGINT', async () => {
       logger.log('SIGINT received, shutting down gracefully...');
       await app.close();
       process.exit(0);
@@ -119,11 +142,16 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-// エラーハンドリング
+// グローバルエラーハンドリング
 process.on('unhandledRejection', (reason, promise) => {
   const logger = new Logger('UnhandledRejection');
-  logger.error('Unhandled Promise Rejection:', reason);
-  // プロダクション環境では適切なエラー報告システムに送信
+  // エラーオブジェクトでない場合は文字列化してスタックトレースを確保
+  const errorInfo = reason instanceof Error 
+    ? reason.stack ?? reason.message 
+    : JSON.stringify(reason);
+  logger.error('Unhandled Promise Rejection:', errorInfo);
+  
+  // 本番環境では適切なエラー報告システムに送信後終了
   if (process.env.NODE_ENV === 'production') {
     process.exit(1);
   }
@@ -131,9 +159,14 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', (error) => {
   const logger = new Logger('UncaughtException');
-  logger.error('Uncaught Exception:', error);
-  // プロダクション環境では適切なエラー報告システムに送信
-  process.exit(1);
+  // 必ずスタックトレースを含めてログ出力
+  const errorInfo = error.stack ?? error.message ?? String(error);
+  logger.error('Uncaught Exception:', errorInfo);
+  
+  // 本番環境では適切なエラー報告システムに送信後終了
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });
 
 // アプリケーション起動

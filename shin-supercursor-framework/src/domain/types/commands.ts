@@ -16,8 +16,7 @@ import {
   PerformanceMetrics,
   ResourceUsage,
   DeepReadonly,
-  BaseEntity,
-  Identifiable
+  BaseEntity
 } from './base.js';
 
 import { ProjectContext, UserContext } from './context.js';
@@ -26,8 +25,7 @@ import { ProjectContext, UserContext } from './context.js';
 // コマンド基本定義
 // ==========================================
 
-export interface Command extends BaseEntity, Identifiable<CommandId> {
-  readonly id: CommandId;
+export interface Command extends BaseEntity<CommandId> {
   readonly sessionId: SessionId;
   readonly name: string;
   readonly arguments: readonly string[];
@@ -51,7 +49,7 @@ export interface EnvironmentContext {
   readonly nodeVersion: string;
   readonly userAgent?: string;
   readonly timestamp: Timestamp;
-  readonly variables: DeepReadonly<Record<string, string>>;
+  readonly variables: DeepReadonly<Record<string, string | undefined>>;
 }
 
 export interface CommandMetadata {
@@ -382,6 +380,12 @@ export function createExecutionContext(
   user: UserContext,
   project: ProjectContext
 ): ExecutionContext {
+  // Create a safe copy of process.env with proper typing
+  const envVariables: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    envVariables[key] = value;
+  }
+  
   return {
     sessionId,
     workingDirectory,
@@ -391,7 +395,7 @@ export function createExecutionContext(
       platform: process.platform,
       nodeVersion: process.version,
       timestamp: Date.now() as Timestamp,
-      variables: process.env as DeepReadonly<Record<string, string>>
+      variables: Object.freeze(envVariables) as DeepReadonly<Record<string, string | undefined>>
     }
   };
 }
