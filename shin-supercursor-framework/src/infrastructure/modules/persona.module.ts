@@ -3,7 +3,7 @@
  * ペルソナ関連のすべてのコンポーネントを統合
  */
 
-import { Module } from '@nestjs/common';
+import { Module, DynamicModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CqrsModule } from '@nestjs/cqrs';
 
@@ -35,6 +35,27 @@ export interface PersonaModuleOptions {
   readonly enableCaching?: boolean;
   readonly maxActivePersonas?: number;
   readonly selectionTimeoutMs?: number;
+}
+
+/**
+ * ペルソナモジュール非同期設定
+ */
+export interface PersonaModuleAsyncOptions {
+  readonly imports?: any[];
+  readonly useFactory: (...args: any[]) => Promise<PersonaModuleOptions> | PersonaModuleOptions;
+  readonly inject?: any[];
+}
+
+/**
+ * ペルソナ管理設定
+ */
+export interface PersonaManagementConfig {
+  readonly maxActivePersonas: number;
+  readonly selectionTimeoutMs: number;
+  readonly enableLearning: boolean;
+  readonly enableCaching: boolean;
+  readonly cacheTimeoutMs: number;
+  readonly enableMetrics: boolean;
 }
 
 /**
@@ -143,12 +164,10 @@ export class PersonaModule {
   /**
    * 非同期設定でモジュールを構成
    */
-  static forRootAsync(options: {
-    useFactory: (...args: any[]) => Promise<PersonaModuleOptions> | PersonaModuleOptions;
-    inject?: any[];
-  }) {
+  static forRootAsync(options: PersonaModuleAsyncOptions): DynamicModule {
     return {
       module: PersonaModule,
+      imports: options.imports || [],
       providers: [
         {
           provide: 'PERSONA_MODULE_OPTIONS',
@@ -157,7 +176,7 @@ export class PersonaModule {
         },
         {
           provide: 'PERSONA_MANAGEMENT_CONFIG',
-          useFactory: async (opts: PersonaModuleOptions) => ({
+          useFactory: async (opts: PersonaModuleOptions): Promise<PersonaManagementConfig> => ({
             maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
             selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
             enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
@@ -167,7 +186,8 @@ export class PersonaModule {
           }),
           inject: ['PERSONA_MODULE_OPTIONS'],
         }
-      ]
+      ],
+      exports: ['PERSONA_MANAGEMENT_CONFIG'],
     };
   }
 }
