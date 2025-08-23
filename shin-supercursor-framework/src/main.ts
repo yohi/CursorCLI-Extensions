@@ -141,7 +141,10 @@ async function bootstrap(): Promise<void> {
 // エラーハンドリング
 process.on('unhandledRejection', (reason, promise) => {
   const logger = new Logger('UnhandledRejection');
-  logger.error('Unhandled Promise Rejection:', reason);
+  logger.error(
+    'Unhandled Promise Rejection:',
+    reason instanceof Error ? reason.stack : JSON.stringify(reason)
+  );
   // プロダクション環境では適切なエラー報告システムに送信
   if (process.env.NODE_ENV === 'production') {
     process.exit(1);
@@ -150,7 +153,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', (error) => {
   const logger = new Logger('UncaughtException');
-  logger.error('Uncaught Exception:', error);
+  logger.error('Uncaught Exception:', error.stack ?? String(error));
   // プロダクション環境では適切なエラー報告システムに送信
   process.exit(1);
 });
