@@ -4,8 +4,8 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { promises as fs, constants as fsConstants, Stats, watch, FSWatcher } from 'fs';
-import { join, resolve, relative, dirname, basename, extname } from 'path';
+import { promises as fs, constants as fsConstants, Stats, watch, FSWatcher, realpathSync } from 'fs';
+import { join, resolve, relative, dirname, basename, extname, isAbsolute } from 'path';
 
 import {
   FrameworkError,
@@ -263,7 +263,7 @@ export class FileSystemAdapter {
         }
         
         const itemPath = join(absolutePath, item);
-        const stats = await fs.stat(itemPath);
+        const stats = await fs.lstat(itemPath);
         const permissions = await this.getFilePermissions(itemPath, stats);
         
         const entry: DirectoryEntry = {
@@ -277,8 +277,8 @@ export class FileSystemAdapter {
         
         entries.push(entry);
         
-        // 再帰的な処理
-        if (recursive && stats.isDirectory() && permissions.readable) {
+        // 再帰的な処理 (シンボリックリンクは無限ループ防止のためスキップ)
+        if (recursive && stats.isDirectory() && !stats.isSymbolicLink() && permissions.readable) {
           try {
             const subListing = await this.listDirectory(itemPath, { ...options, recursive: true });
             entries.push(...subListing.entries);
@@ -351,16 +351,18 @@ export class FileSystemAdapter {
       this.logger.debug(`Deleted successfully: ${path}`);
       
     } catch (error) {
-      if (error.code === 'ENOENT' && force) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      
+      if (code === 'ENOENT' && force) {
         // forceモードでファイルが存在しない場合は成功とみなす
         return;
       }
       
-      if (error?.code === 'ENOENT') {
+      if (code === 'ENOENT') {
         throw new FileNotFoundError(`Path not found: ${path}`);
-      } else if (error?.code === 'EACCES') {
+      } else if (code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${path}`);
-      } else if (error?.code === 'ENOTEMPTY') {
+      } else if (code === 'ENOTEMPTY') {
         throw new FileSystemError(`Directory not empty: ${path}. Use recursive option.`);
       } else {
         throw new FileSystemError(`Failed to delete: ${error instanceof Error ? error.message : String(error)}`);
@@ -510,20 +512,30 @@ export class FileSystemAdapter {
   }
 
   private validatePath(absolutePath: string): void {
-    // 許可されたパスチェック
-    const isAllowed = this.config.allowedPaths.some(allowedPath => 
-      absolutePath.startsWith(resolve(allowedPath))
+    const norm = (p: string) => resolve(p);
+    const safeReal = (p: string) => {
+      try { return realpathSync(p); } catch { return p; } // 未存在パスはそのまま
+    };
+    const target = norm(absolutePath);
+    const targetReal = safeReal(target);
+
+    const isWithin = (base: string, p: string) => {
+      const rel = relative(norm(base), p);
+      return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+    };
+
+    // 許可チェック（実パスも）
+    const isAllowed = this.config.allowedPaths.some(base =>
+      isWithin(base, target) || isWithin(base, targetReal)
     );
-    
     if (!isAllowed) {
       throw new PathNotAllowedError(`Path not allowed: ${absolutePath}`);
     }
-    
-    // 拒否されたパスチェック
-    const isDenied = this.config.deniedPaths.some(deniedPath => 
-      absolutePath.startsWith(resolve(deniedPath))
+
+    // 拒否チェック（実パスも）
+    const isDenied = this.config.deniedPaths.some(base =>
+      isWithin(base, target) || isWithin(base, targetReal)
     );
-    
     if (isDenied) {
       throw new PathNotAllowedError(`Path denied: ${absolutePath}`);
     }
