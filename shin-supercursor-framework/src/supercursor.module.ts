@@ -77,7 +77,10 @@ export interface SuperCursorModuleOptions {
       enableMetrics: process.env.COMMAND_ENABLE_METRICS !== 'false',
       defaultTimeout: parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000'),
       maxConcurrentCommands: parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10')
-    })
+    }),
+
+    // 統合モジュール
+    IntegrationModule.forRoot()
   ],
   
   providers: [
