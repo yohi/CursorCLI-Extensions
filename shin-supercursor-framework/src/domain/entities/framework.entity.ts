@@ -14,10 +14,14 @@ import {
   ConfigurationError,
   ValidationError,
   CommandExecutionError,
+  PersonaSelectionError,
+  SecurityError,
   LogLevel,
   DeepReadonly,
   BaseEntity
 } from '../types/index.js';
+
+import { randomUUID } from 'node:crypto';
 
 import {
   Command,
@@ -25,7 +29,8 @@ import {
   ExecutionContext,
   CommandHandler,
   CommandRouter,
-  CommandExecutionEngine
+  CommandExecutionEngine,
+  ParsedCommand
 } from '../types/commands.js';
 
 import {
@@ -267,11 +272,11 @@ export class FrameworkEntity extends BaseEntity {
       this._state = FrameworkState.ERROR;
       const frameworkError = error instanceof FrameworkError 
         ? error 
-        : new ConfigurationError(`初期化に失敗しました: ${error.message}`);
+        : new ConfigurationError(`初期化に失敗しました: ${this.formatErrorMessage(error)}`);
       
       this.emitEvent({
         type: FrameworkEventType.ERROR_OCCURRED,
-        data: { error: frameworkError.toJSON() }
+        data: { error: frameworkError }
       });
       
       throw frameworkError;
@@ -295,22 +300,27 @@ export class FrameworkEntity extends BaseEntity {
     try {
       this._state = FrameworkState.RUNNING;
 
+      // Check dependencies are initialized
+      if (!this._commandRouter) {
+        throw new ConfigurationError('CommandRouter が初期化されていません');
+      }
+      if (!this._commandEngine) {
+        throw new ConfigurationError('CommandExecutionEngine が初期化されていません');
+      }
+
       // 1. コマンド解析
-      const parsedCommand = await this._commandRouter!.parseCommand(input);
+      const parsedCommand = await this._commandRouter.parseCommand(input);
       
       // 2. バリデーション
-      const validationResult = await this._commandRouter!.validateCommand(parsedCommand);
+      const validationResult = await this._commandRouter.validateCommand(parsedCommand);
       if (!validationResult.valid) {
         throw new ValidationError(
           `コマンドの検証に失敗しました: ${validationResult.errors.map(e => e.message).join(', ')}`
         );
       }
 
-      // 3. コマンドオブジェクト構築
-      command = this.buildCommand(parsedCommand, executionContext);
-
-      // 4. ペルソナ選択
-      const personaResult = await this.selectPersona(command, executionContext);
+      // 3. ペルソナ選択（コマンド構築前に実行し、コンテキストを更新）
+      const personaResult = await this.selectPersona(parsedCommand, executionContext);
       if (personaResult.success && personaResult.selectedPersona) {
         // ペルソナをコンテキストに追加
         executionContext = {
@@ -319,8 +329,11 @@ export class FrameworkEntity extends BaseEntity {
         };
       }
 
+      // 4. コマンドオブジェクト構築（更新されたコンテキストを使用）
+      command = this.buildCommand(parsedCommand, executionContext);
+
       // 5. コマンド実行
-      result = await this._commandEngine!.execute(command);
+      result = await this._commandEngine.execute(command);
 
       // 6. 統計更新
       this.updateStatistics(command, result, Date.now() - startTime);
@@ -331,7 +344,7 @@ export class FrameworkEntity extends BaseEntity {
     } catch (error) {
       const frameworkError = error instanceof FrameworkError 
         ? error 
-        : new CommandExecutionError(`コマンド実行に失敗しました: ${error.message}`);
+        : new CommandExecutionError(`コマンド実行に失敗しました: ${this.formatErrorMessage(error)}`);
 
       // エラー結果を構築
       result = {
@@ -356,7 +369,7 @@ export class FrameworkEntity extends BaseEntity {
       
       this.emitEvent({
         type: FrameworkEventType.ERROR_OCCURRED,
-        data: { error: frameworkError.toJSON(), command: command?.name }
+        data: { error: frameworkError, command: command?.name }
       });
 
       return result;
@@ -411,7 +424,7 @@ export class FrameworkEntity extends BaseEntity {
   // ==========================================
 
   public async selectPersona(
-    command: Command,
+    command: Command | ParsedCommand,
     context: ExecutionContext
   ): Promise<PersonaSelectionResult> {
     this.ensureReady();
@@ -450,7 +463,7 @@ export class FrameworkEntity extends BaseEntity {
       return {
         success: false,
         confidence: 0,
-        reasoning: `ペルソナ選択に失敗しました: ${error.message}`,
+        reasoning: `ペルソナ選択に失敗しました: ${this.formatErrorMessage(error)}`,
         alternatives: [],
         selectionTime: Date.now() - startTime
       };
@@ -484,7 +497,7 @@ export class FrameworkEntity extends BaseEntity {
 
     } catch (error) {
       this._state = FrameworkState.ERROR;
-      throw new FrameworkError(`シャットダウンに失敗しました: ${error.message}`);
+      throw new FrameworkError(`シャットダウンに失敗しました: ${this.formatErrorMessage(error)}`);
     }
   }
 
@@ -503,10 +516,50 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private async initializeDependencies(): Promise<void> {
-    // 依存コンポーネントの初期化（実装待ち）
-    // this._commandRouter = new CommandRouterImpl();
-    // this._commandEngine = new CommandExecutionEngineImpl();
-    // this._personaManager = new PersonaManagerImpl();
+    try {
+      // Import implementation classes
+      const { CommandRoutingService } = await import('../services/command-routing.service.js');
+      const { CommandExecutionEngineImpl } = await import('../../infrastructure/command-execution-engine.impl.js');
+      const { PersonaManagerImpl } = await import('../../infrastructure/persona-manager.impl.js');
+      const { PersonaSelectionService } = await import('../services/persona-selection.service.js');
+
+      // Use InMemoryPersonaRepository for development/testing
+      const { InMemoryPersonaRepository } = await import('../../infrastructure/persona-repository.inmemory.js');
+      const mockPersonaRepository = new InMemoryPersonaRepository();
+      
+      // CommandRouter の初期化
+      this._commandRouter = new CommandRoutingService({
+        enableValidation: this._configuration.enableValidation,
+        enableCaching: this._configuration.enableCaching,
+        enableMetrics: this._configuration.performance.enableMetrics,
+        defaultTimeout: this._configuration.performance.commandTimeout,
+        maxConcurrentCommands: 10
+      });
+      
+      // CommandExecutionEngine の初期化  
+      this._commandEngine = new CommandExecutionEngineImpl(this._commandRouter, {
+        maxConcurrentExecutions: 10,
+        defaultTimeout: this._configuration.performance.commandTimeout,
+        enableMetrics: this._configuration.performance.enableMetrics,
+        enableLogging: true
+      });
+      
+      // PersonaManager の初期化
+      const personaSelectionService = new PersonaSelectionService(mockPersonaRepository);
+      this._personaManager = new PersonaManagerImpl(
+        mockPersonaRepository,
+        personaSelectionService,
+        {
+          enableLearning: this._configuration.personas.enableLearning,
+          enableAutoSelection: this._configuration.personas.enableAutoSelection,
+          confidenceThreshold: this._configuration.personas.confidenceThreshold,
+          maxConcurrentPersonas: this._configuration.personas.maxConcurrentPersonas
+        }
+      );
+      
+    } catch (error) {
+      throw new ConfigurationError(`依存コンポーネントの初期化に失敗しました: ${this.formatErrorMessage(error)}`);
+    }
   }
 
   private async validateConfiguration(): Promise<void> {
@@ -605,16 +658,20 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private updateStatistics(command: Command, result: CommandResult, duration: number): void {
+    const prevCount = this._statistics.commandsExecuted;
+    const newCount = prevCount + 1;
+    const prevSuccesses = this._statistics.successRate * prevCount;
+    const prevErrors = this._statistics.errorRate * prevCount;
+    
+    const newSuccesses = prevSuccesses + (result.success ? 1 : 0);
+    const newErrors = prevErrors + (result.success ? 0 : 1);
+    
     this._statistics = {
       ...this._statistics,
-      commandsExecuted: this._statistics.commandsExecuted + 1,
-      averageExecutionTime: (this._statistics.averageExecutionTime + duration) / 2,
-      successRate: result.success ? 
-        (this._statistics.successRate + 1) / this._statistics.commandsExecuted : 
-        this._statistics.successRate,
-      errorRate: !result.success ? 
-        (this._statistics.errorRate + 1) / this._statistics.commandsExecuted : 
-        this._statistics.errorRate
+      commandsExecuted: newCount,
+      averageExecutionTime: (this._statistics.averageExecutionTime * prevCount + duration) / newCount,
+      successRate: newSuccesses / newCount,
+      errorRate: newErrors / newCount
     };
   }
 
@@ -622,16 +679,51 @@ export class FrameworkEntity extends BaseEntity {
     if (!this.isReady) {
       throw new ConfigurationError(`フレームワークが準備できていません。現在の状態: ${this._state}`);
     }
+
+    // Validate mandatory dependencies
+    const missingDependencies = this.getMissingDependencies();
+    if (missingDependencies.length > 0) {
+      throw new ConfigurationError(
+        `必要な依存関係が初期化されていません: ${missingDependencies.join(', ')}`
+      );
+    }
+  }
+
+  private getMissingDependencies(): string[] {
+    const missing: string[] = [];
+
+    if (!this._commandRouter) {
+      missing.push('CommandRouter');
+    }
+    if (!this._commandEngine) {
+      missing.push('CommandExecutionEngine');
+    }
+    if (!this._personaManager) {
+      missing.push('PersonaManager');
+    }
+    if (!this._configuration) {
+      missing.push('Configuration');
+    }
+
+    return missing;
+  }
+
+  /**
+   * 暗号学的に安全なID生成ユーティリティ
+   * @param prefix IDのプレフィックス
+   * @returns プレフィックス付きのUUID
+   */
+  private generatePrefixedId(prefix: string): string {
+    const uuid = randomUUID();
+    return `${prefix}_${uuid}`;
   }
 
   private generateCommandId(): CommandId {
-    const randomBytes = Math.random().toString(36).substring(2, 18);
-    return `cmd_${randomBytes}` as CommandId;
+    return this.generatePrefixedId('cmd') as CommandId;
   }
 
   private generateSessionId(): SessionId {
-    const randomBytes = Math.random().toString(36).substring(2, 22);
-    return `session_${randomBytes}` as SessionId;
+    return this.generatePrefixedId('session') as SessionId;
   }
 
   private emitEvent(eventData: {
@@ -639,7 +731,7 @@ export class FrameworkEntity extends BaseEntity {
     data: DeepReadonly<Record<string, unknown>>;
   }): void {
     const event: FrameworkEvent = {
-      id: Math.random().toString(36).substring(2, 18),
+      id: this.generatePrefixedId('event'),
       type: eventData.type,
       timestamp: Date.now() as Timestamp,
       data: eventData.data,
@@ -658,11 +750,46 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private getLastError(): FrameworkError | undefined {
-    const errorEvent = this._eventHistory
-      .reverse()
-      .find(event => event.type === FrameworkEventType.ERROR_OCCURRED);
+    // Scan from the end without mutating the array
+    for (let i = this._eventHistory.length - 1; i >= 0; i--) {
+      const event = this._eventHistory[i];
+      if (event.type === FrameworkEventType.ERROR_OCCURRED) {
+        // Check if the error data is a FrameworkError instance or JSON
+        const errorData = event.data.error;
+        if (errorData instanceof FrameworkError) {
+          return errorData;
+        }
+        // If it's JSON data, try to reconstruct the error (though this is not ideal)
+        if (typeof errorData === 'object' && errorData && 'message' in errorData) {
+          const errorObj = errorData as any;
+          // エラータイプに応じて適切なインスタンスを作成
+          const errorMessage = errorObj.message || 'Unknown error';
+          switch (errorObj.type || errorObj.name) {
+            case 'ConfigurationError':
+              return new ConfigurationError(errorMessage);
+            case 'ValidationError':
+              return new ValidationError(errorMessage);
+            case 'CommandExecutionError':
+              return new CommandExecutionError(errorMessage);
+            case 'PersonaSelectionError':
+              return new PersonaSelectionError(errorMessage);
+            case 'SecurityError':
+              return new SecurityError(errorMessage);
+            default:
+              return new FrameworkError(errorMessage);
+          }
+        }
+        break;
+      }
+    }
+    return undefined;
+  }
 
-    return errorEvent?.data.error as FrameworkError | undefined;
+  /**
+   * エラーから安全にメッセージを取得するヘルパー
+   */
+  private formatErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async cleanup(): Promise<void> {

@@ -7,20 +7,19 @@ import {
   ProjectId,
   SessionId,
   UserId,
+  PersonaId,
   Timestamp,
   VerbosityLevel,
   OutputFormat,
   DeepReadonly,
-  BaseEntity,
-  Identifiable
+  BaseEntity
 } from './base.js';
 
 // ==========================================
 // プロジェクトコンテキスト
 // ==========================================
 
-export interface ProjectContext extends BaseEntity, Identifiable<ProjectId> {
-  readonly id: ProjectId;
+export interface ProjectContext extends BaseEntity<ProjectId> {
   readonly rootPath: string;
   readonly name: string;
   readonly type: ProjectType;
@@ -558,7 +557,7 @@ export interface CoverageDetails {
 export interface QualityMetrics {
   readonly codeQuality: CodeQualityMetrics;
   readonly security: SecurityMetrics;
-  readonly performance: PerformanceMetrics;
+  readonly performance: ProjectPerformanceMetrics;
   readonly maintainability: MaintainabilityMetrics;
 }
 
@@ -586,7 +585,7 @@ export enum SecurityRating {
   E = 'E'
 }
 
-export interface PerformanceMetrics {
+export interface ProjectPerformanceMetrics {
   readonly buildTime: number;
   readonly testTime: number;
   readonly bundleSize: number;
@@ -660,8 +659,7 @@ export interface EnvironmentPaths {
 // ユーザーコンテキスト
 // ==========================================
 
-export interface UserContext extends BaseEntity, Identifiable<UserId> {
-  readonly id: UserId;
+export interface UserContext extends BaseEntity<UserId> {
   readonly name: string;
   readonly email?: string;
   readonly preferences: UserPreferences;
@@ -798,8 +796,7 @@ export interface ProductivityMetrics {
 // セッションコンテキスト
 // ==========================================
 
-export interface SessionContext extends BaseEntity, Identifiable<SessionId> {
-  readonly id: SessionId;
+export interface SessionContext extends BaseEntity<SessionId> {
   readonly userId: UserId;
   readonly startTime: Date;
   readonly lastActivity: Date;
