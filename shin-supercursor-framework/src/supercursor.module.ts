@@ -10,6 +10,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 // アプリケーション層
 import { ExecuteSupercursorHandler } from './application/commands/execute-supercursor.handler.js';
+import { PersonaManagementService } from './application/services/persona-management.service.js';
 
 // インフラストラクチャ層
 import { PersonaModule } from './infrastructure/modules/persona.module.js';
@@ -92,7 +93,7 @@ export interface SuperCursorModuleOptions {
     // ペルソナサービス（PersonaModuleから提供）
     {
       provide: 'PERSONA_SERVICE',
-      useExisting: 'PersonaManagementService'
+      useExisting: PersonaManagementService
     },
     
     // コマンドルーター（CommandModuleから提供）

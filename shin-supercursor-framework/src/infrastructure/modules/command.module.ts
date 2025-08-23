@@ -51,16 +51,21 @@ export interface CommandModuleOptions {
     // BuildCommandHandler,
     // DesignCommandHandler,
     
-    // 設定プロバイダー
+    // デフォルトオプション + 設定プロバイダー（forRoot/forRootAsync で上書き可能）
+    {
+      provide: 'COMMAND_MODULE_OPTIONS',
+      useValue: {},
+    },
     {
       provide: 'COMMAND_ROUTING_CONFIG',
-      useFactory: () => ({
-        enableValidation: process.env.COMMAND_ENABLE_VALIDATION !== 'false',
-        enableCaching: process.env.COMMAND_ENABLE_CACHING !== 'false',
-        enableMetrics: process.env.COMMAND_ENABLE_METRICS !== 'false',
-        defaultTimeout: parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000'),
-        maxConcurrentCommands: parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10')
-      })
+      useFactory: (options: CommandModuleOptions) => ({
+        enableValidation: options.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
+        enableCaching: options.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
+        enableMetrics: options.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
+        defaultTimeout: options.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
+        maxConcurrentCommands: options.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
+      }),
+      inject: ['COMMAND_MODULE_OPTIONS'],
     },
     
     // コマンドルーター実装
@@ -98,16 +103,6 @@ export class CommandModule {
         {
           provide: 'COMMAND_MODULE_OPTIONS',
           useValue: options
-        },
-        {
-          provide: 'COMMAND_ROUTING_CONFIG',
-          useFactory: () => ({
-            enableValidation: options.enableValidation ?? true,
-            enableCaching: options.enableCaching ?? true,
-            enableMetrics: options.enableMetrics ?? true,
-            defaultTimeout: options.defaultTimeout || 30000,
-            maxConcurrentCommands: options.maxConcurrentCommands || 10
-          })
         }
       ]
     };
@@ -127,17 +122,6 @@ export class CommandModule {
           provide: 'COMMAND_MODULE_OPTIONS',
           useFactory: options.useFactory,
           inject: options.inject || []
-        },
-        {
-          provide: 'COMMAND_ROUTING_CONFIG',
-          useFactory: async (moduleOptions: CommandModuleOptions) => ({
-            enableValidation: moduleOptions.enableValidation ?? true,
-            enableCaching: moduleOptions.enableCaching ?? true,
-            enableMetrics: moduleOptions.enableMetrics ?? true,
-            defaultTimeout: moduleOptions.defaultTimeout || 30000,
-            maxConcurrentCommands: moduleOptions.maxConcurrentCommands || 10
-          }),
-          inject: ['COMMAND_MODULE_OPTIONS']
         }
       ]
     };

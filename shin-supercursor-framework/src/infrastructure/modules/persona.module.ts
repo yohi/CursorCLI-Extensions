@@ -99,17 +99,22 @@ export interface PersonaModuleOptions {
       }
     },
     
-    // 設定プロバイダー
+    // デフォルトオプション + 設定プロバイダー（forRoot/Async で上書き可能）
+    {
+      provide: 'PERSONA_MODULE_OPTIONS',
+      useValue: {},
+    },
     {
       provide: 'PERSONA_MANAGEMENT_CONFIG',
-      useFactory: () => ({
-        maxActivePersonas: parseInt(process.env.MAX_ACTIVE_PERSONAS || '5'),
-        selectionTimeoutMs: parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000'),
-        enableLearning: process.env.PERSONA_ENABLE_LEARNING !== 'false',
-        enableCaching: process.env.PERSONA_ENABLE_CACHING !== 'false',
-        cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000'),
-        enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false'
-      })
+      useFactory: (opts: PersonaModuleOptions) => ({
+        maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
+        selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
+        enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
+        enableCaching: opts.enableCaching ?? (process.env.PERSONA_ENABLE_CACHING !== 'false'),
+        cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000', 10),
+        enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false',
+      }),
+      inject: ['PERSONA_MODULE_OPTIONS'],
     }
   ],
   
@@ -134,17 +139,6 @@ export class PersonaModule {
         {
           provide: 'PERSONA_MODULE_OPTIONS',
           useValue: options
-        },
-        {
-          provide: 'PERSONA_MANAGEMENT_CONFIG',
-          useFactory: () => ({
-            maxActivePersonas: options.maxActivePersonas || 5,
-            selectionTimeoutMs: options.selectionTimeoutMs || 5000,
-            enableLearning: options.enableLearning ?? true,
-            enableCaching: options.enableCaching ?? true,
-            cacheTimeoutMs: 300000,
-            enableMetrics: true
-          })
         }
       ]
     };
@@ -164,18 +158,6 @@ export class PersonaModule {
           provide: 'PERSONA_MODULE_OPTIONS',
           useFactory: options.useFactory,
           inject: options.inject || []
-        },
-        {
-          provide: 'PERSONA_MANAGEMENT_CONFIG',
-          useFactory: async (moduleOptions: PersonaModuleOptions) => ({
-            maxActivePersonas: moduleOptions.maxActivePersonas || 5,
-            selectionTimeoutMs: moduleOptions.selectionTimeoutMs || 5000,
-            enableLearning: moduleOptions.enableLearning ?? true,
-            enableCaching: moduleOptions.enableCaching ?? true,
-            cacheTimeoutMs: 300000,
-            enableMetrics: true
-          }),
-          inject: ['PERSONA_MODULE_OPTIONS']
         }
       ]
     };
