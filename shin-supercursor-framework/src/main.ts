@@ -33,6 +33,9 @@ async function bootstrap(): Promise<void> {
       } : false
     }));
 
+    // シャットダウンフックの有効化
+    app.enableShutdownHooks();
+
     // グローバルパイプの設定
     app.useGlobalPipes(
       new ValidationPipe({
@@ -77,15 +80,16 @@ async function bootstrap(): Promise<void> {
       logger.log('Swagger documentation available at /api/docs');
     }
 
-    // ヘルスチェックエンドポイントの設定
-    app.getHttpAdapter().get('/health', (req, res) => {
-      res.status(200).json({
+    // ヘルスチェックエンドポイントの設定（Express/Fastify両対応）
+    const http = app.getHttpAdapter();
+    http.get('/health', (req, res) => {
+      http.reply(res, {
         status: 'ok',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         version: process.env.npm_package_version || '1.0.0',
-      });
+      }, 200);
     });
 
     // メトリクスエンドポイントの設定（本番環境は環境変数で明示有効化）
