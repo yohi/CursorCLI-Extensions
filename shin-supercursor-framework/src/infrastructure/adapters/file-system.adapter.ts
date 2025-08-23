@@ -336,13 +336,15 @@ export class FileSystemAdapter {
     const { recursive = false, force = false } = options;
 
     try {
-      const stats = await fs.stat(absolutePath);
+      const stats = await fs.lstat(absolutePath);
       
-      if (stats.isDirectory()) {
+      if (stats.isSymbolicLink()) {
+        await fs.unlink(absolutePath);
+      } else if (stats.isDirectory()) {
         if (recursive) {
           await fs.rm(absolutePath, { recursive: true, force });
         } else {
-          await fs.rmdir(absolutePath);
+          await fs.rm(absolutePath, { recursive: false });
         }
       } else {
         await fs.unlink(absolutePath);
@@ -456,6 +458,14 @@ export class FileSystemAdapter {
       this.watchers.set(watchId, watcher);
       this.watchCallbacks.set(watchId, callback);
       
+      // 重要: errorイベントのハンドリング（未処理でプロセス落ち防止）
+      watcher.on('error', (err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(`File watcher error (${watchId}): ${msg}`);
+        // ベストエフォートでクリーンアップ
+        this.unwatchFile(watchId).catch(() => {});
+      });
+      
       this.logger.debug(`File watcher started: ${path} (${watchId})`);
       return watchId;
       
@@ -520,21 +530,29 @@ export class FileSystemAdapter {
     const targetReal = safeReal(target);
 
     const isWithin = (base: string, p: string) => {
-      const rel = relative(norm(base), p);
+      const baseNorm = norm(base);
+      const rel = relative(baseNorm, p);
+      return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+    };
+    const isWithinRealBase = (base: string, p: string) => {
+      const baseReal = safeReal(norm(base));
+      const rel = relative(baseReal, p);
       return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
     };
 
-    // 許可チェック（実パスも）
-    const isAllowed = this.config.allowedPaths.some(base =>
-      isWithin(base, target) || isWithin(base, targetReal)
-    );
+    // 許可チェック
+    const isAllowedByPath = this.config.allowedPaths.some(base => isWithin(base, target));
+    const isAllowedByReal = this.config.allowedPaths.some(base => isWithinRealBase(base, targetReal));
+    // realpathが解決できた（=既存パス等）場合は実パス側の包含も必須
+    const requireRealCheck = targetReal !== target;
+    const isAllowed = isAllowedByPath && (!requireRealCheck || isAllowedByReal);
     if (!isAllowed) {
       throw new PathNotAllowedError(`Path not allowed: ${absolutePath}`);
     }
 
-    // 拒否チェック（実パスも）
+    // 拒否チェック（論理 or 実パスのどちらかがマッチで拒否）
     const isDenied = this.config.deniedPaths.some(base =>
-      isWithin(base, target) || isWithin(base, targetReal)
+      isWithin(base, target) || isWithinRealBase(base, targetReal)
     );
     if (isDenied) {
       throw new PathNotAllowedError(`Path denied: ${absolutePath}`);
