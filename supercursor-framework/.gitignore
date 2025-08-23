@@ -1,0 +1,159 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary files
+.tmp/
+.temp/
+*.tmp
+*.temp
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Optional npm cache directory
+.npm
+
+# Optional ESLint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# SuperCursor Framework specific files
+# Configuration files that may contain sensitive data
+config/local.json
+config/production.json
+config/development.json
+config/secrets.json
+
+# AI model artifacts and cache
+models/
+.model-cache/
+embeddings/
+.embeddings-cache/
+
+# Persona learning data and cache
+persona-data/
+.persona-cache/
+persona-state/
+
+# Session and user data
+sessions/
+user-data/
+.session-cache/
+
+# Framework cache directories
+.supercursor-cache/
+.framework-cache/
+
+# Command execution artifacts
+command-artifacts/
+execution-logs/
+
+# Build and compilation artifacts
+lib/
+out/
+*.js.map
+*.d.ts
+
+# Test results and coverage
+test-results/
+test-artifacts/
+junit.xml
+.nyc_output/
+
+# Examples build output
+examples/**/*.js
+examples/**/*.js.map
+examples/**/*.d.ts
+examples/build/
+examples/dist/
+
+# Documentation build
+docs/build/
+docs/generated/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Development tools
+.tool-versions
+
+# Package manager files (uncomment if you want to ignore them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Benchmarks and performance data
+benchmarks/results/
+performance-data/
+
+# Security scan results
+security-reports/
+vulnerability-reports/
