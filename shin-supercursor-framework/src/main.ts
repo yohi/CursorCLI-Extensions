@@ -6,6 +6,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 
 import { SuperCursorModule } from './supercursor.module.js';
 
@@ -20,6 +21,17 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(SuperCursorModule, {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
+
+    // セキュリティヘッダーの設定（Helmet）
+    app.use(helmet({
+      contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+      crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
+      hsts: process.env.NODE_ENV === 'production' ? {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      } : false
+    }));
 
     // グローバルパイプの設定
     app.useGlobalPipes(
@@ -76,17 +88,20 @@ async function bootstrap(): Promise<void> {
       });
     });
 
-    // メトリクスエンドポイントの設定
-    app.getHttpAdapter().get('/metrics', (req, res) => {
-      res.status(200).json({
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        cpu: process.cpuUsage(),
-        version: process.env.npm_package_version || '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
+    // メトリクスエンドポイントの設定（本番環境は環境変数で明示有効化）
+    if (process.env.NODE_ENV !== 'production' || process.env.EXPOSE_METRICS === 'true') {
+      const http = app.getHttpAdapter();
+      http.get('/metrics', (req, res) => {
+        http.reply(res, {
+          timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+          cpu: process.cpuUsage(),
+          version: process.env.npm_package_version || '1.0.0',
+          environment: process.env.NODE_ENV || 'development',
+        }, 200);
       });
-    });
+    }
 
     // アプリケーション起動
     const port = process.env.PORT || 3000;

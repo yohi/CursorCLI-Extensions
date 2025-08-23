@@ -32,9 +32,10 @@ export type {
   PersonaConfiguration,
   SecurityConfiguration,
   PerformanceConfiguration,
-  FrameworkInitOptions,
-  SuperCursorModuleOptions
+  FrameworkInitOptions
 } from './domain/entities/framework.entity.js';
+
+export type { SuperCursorModuleOptions } from './supercursor.module.js';
 
 // ==========================================
 // 定数・設定
