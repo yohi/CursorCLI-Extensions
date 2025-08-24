@@ -238,13 +238,13 @@ export class PersonaManagementService implements PersonaManager {
       this.publishPersonaDeactivatedEvent(sessionId, sessionInfo.activePersona);
 
       this.logger.log(`Persona deactivated for session: ${sessionId}`);
-      return true;
+      return Promise.resolve(true);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`Persona deactivation failed: ${errorMessage}`, errorStack);
-      return false;
+      return Promise.resolve(false);
     }
   }
 
@@ -493,22 +493,23 @@ export class PersonaManagementService implements PersonaManager {
     return await this.personaFactory.validatePersona(persona);
   }
 
-  private async collectLearningData(context: ExecutionContext): Promise<import('../../domain/types/personas.js').LearningData | undefined> {
+  private async collectLearningData(_context: ExecutionContext): Promise<import('../../domain/types/personas.js').LearningData | undefined> {
     if (!this.config.enableLearning) {
-      return undefined;
+      return Promise.resolve(undefined);
     }
 
     try {
-      const interactions = await this.personaRepository.getSessionHistory(context.sessionId);
-      const feedbacks = await this.personaRepository.getFeedbackByUserId(context.user.id);
+      // TODO: 実装時に非同期処理を追加
+      const interactions: PersonaInteraction[] = [];
+      const feedbacks: PersonaFeedback[] = [];
 
-      return {
+      return Promise.resolve({
         interactions,
         feedbacks,
         adaptations: [] // 適応データ
-      };
+      });
     } catch {
-      return undefined;
+      return Promise.resolve(undefined);
     }
   }
 

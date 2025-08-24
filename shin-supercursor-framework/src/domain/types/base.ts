@@ -80,22 +80,28 @@ export enum ParameterType {
 // ベース抽象エラークラス
 // ==========================================
 
-export abstract class FrameworkError extends Error {
-  abstract readonly code: string;
-  abstract readonly severity: ErrorSeverity;
-  abstract readonly recoverable: boolean;
+export class FrameworkError extends Error {
+  readonly code: string;
+  readonly severity: ErrorSeverity;
+  readonly recoverable: boolean;
   
   public readonly timestamp: Timestamp;
   public readonly context?: Record<string, unknown>;
 
   constructor(
     message: string, 
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
+    code: string = 'FRAMEWORK_ERROR',
+    severity: ErrorSeverity = ErrorSeverity.HIGH,
+    recoverable: boolean = false
   ) {
     super(message);
     this.name = this.constructor.name;
     this.timestamp = Date.now() as Timestamp;
     this.context = context;
+    this.code = code;
+    this.severity = severity;
+    this.recoverable = recoverable;
     
     // Error.captureStackTrace が存在する場合（Node.js環境）
     if (Error.captureStackTrace) {

@@ -51,7 +51,7 @@ async function bootstrap(): Promise<void> {
 
     // CORS 設定（必要に応じて）
     app.enableCors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
       credentials: true,
     });
 
@@ -88,7 +88,7 @@ async function bootstrap(): Promise<void> {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        version: process.env.npm_package_version || '1.0.0',
+        version: process.env.npm_package_version ?? '1.0.0',
       }, 200);
     });
 
@@ -101,14 +101,14 @@ async function bootstrap(): Promise<void> {
           uptime: process.uptime(),
           memory: process.memoryUsage(),
           cpu: process.cpuUsage(),
-          version: process.env.npm_package_version || '1.0.0',
-          environment: process.env.NODE_ENV || 'development',
+          version: process.env.npm_package_version ?? '1.0.0',
+          environment: process.env.NODE_ENV ?? 'development',
         }, 200);
       });
     }
 
     // アプリケーション起動
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT ?? 3000;
     await app.listen(port);
 
     logger.log(`🚀 SuperCursor Framework is running on port ${port}`);
@@ -124,16 +124,14 @@ async function bootstrap(): Promise<void> {
     }
 
     // グレースフルシャットダウンの設定（重複ハンドラー防止のためprocess.once使用）
-    process.once('SIGTERM', async () => {
+    process.once('SIGTERM', () => {
       logger.log('SIGTERM received, shutting down gracefully...');
-      await app.close();
-      process.exit(0);
+      void app.close().then(() => process.exit(0));
     });
 
-    process.once('SIGINT', async () => {
+    process.once('SIGINT', () => {
       logger.log('SIGINT received, shutting down gracefully...');
-      await app.close();
-      process.exit(0);
+      void app.close().then(() => process.exit(0));
     });
 
   } catch (error) {
@@ -143,7 +141,7 @@ async function bootstrap(): Promise<void> {
 }
 
 // グローバルエラーハンドリング
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   const logger = new Logger('UnhandledRejection');
   // エラーオブジェクトでない場合は文字列化してスタックトレースを確保
   const errorInfo = reason instanceof Error 

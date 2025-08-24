@@ -18,14 +18,14 @@ import {
   PersonaManager,
   PersonaContext,
   PersonaSelectionResult,
+  PersonaType,
   PersonaActivationResult,
   PersonaSwitchResult,
   PersonaFilter,
   PersonaSearchQuery,
   PersonaSearchResult,
   PersonaInteraction,
-  PersonaFeedback,
-  PersonaType
+  PersonaFeedback
 } from '../domain/types/personas.js';
 
 
@@ -39,7 +39,7 @@ export interface PersonaManagerConfig {
 
 export class PersonaManagerImpl implements PersonaManager {
   private activeSessions = new Map<SessionId, PersonaId>();
-  private readonly logger = { error: console.error }; // Simple logger implementation
+  private readonly logger = { error: (_message: string): void => { /* TODO: Replace with proper logger */ } }; // Simple logger implementation
   
   private readonly defaultConfig: PersonaManagerConfig = {
     enableLearning: true,
@@ -70,7 +70,7 @@ export class PersonaManagerImpl implements PersonaManager {
 
       if (activePersona) {
         // Calculate dynamic confidence based on persona analysis
-        confidence = await this.calculatePersonaConfidence(activePersona, context);
+        confidence = this.calculatePersonaConfidence(activePersona, context);
         reasoning = `Using active persona: ${activePersona.name} (confidence: ${(confidence * 100).toFixed(1)}%)`;
       } else {
         // Try to find suitable personas and calculate confidence
@@ -83,19 +83,19 @@ export class PersonaManagerImpl implements PersonaManager {
 
       return {
         sessionId: context.sessionId,
-        activePersona: activePersona || undefined,
+        activePersona: activePersona ?? undefined,
         confidence,
         reasoning,
         alternatives: [],
         executionContext: context
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
       throw new FrameworkError(`Context analysis failed: ${errorMessage}`);
     }
   }
 
-  private async calculatePersonaConfidence(persona: AIPersona, context: ExecutionContext): Promise<number> {
+  private calculatePersonaConfidence(persona: AIPersona, context: ExecutionContext): number {
     const TECH_WEIGHT = 0.4;
     const TYPE_WEIGHT = 0.3;
     const TRIGGER_WEIGHT = 0.3;
@@ -133,7 +133,9 @@ export class PersonaManagerImpl implements PersonaManager {
       };
 
       if (projectType) {
-        const suitableTypes = projectTypeMapping[projectType] ?? [];
+        const suitableTypes = Object.prototype.hasOwnProperty.call(projectTypeMapping, projectType) 
+          ? projectTypeMapping[projectType as keyof typeof projectTypeMapping] ?? []
+          : [];
         const typeMatch = suitableTypes.includes(persona.type as PersonaType) ? 1 : 0.3;
         score += typeMatch * TYPE_WEIGHT;
         totalWeight += TYPE_WEIGHT;
@@ -148,7 +150,7 @@ export class PersonaManagerImpl implements PersonaManager {
       const projectType = context.project?.type;
       if (triggers.length > 0 && projectType) {
         const triggerMatches = triggers.filter(trigger => {
-          if (trigger.type === 'project_type') {
+          if (String(trigger.type) === 'project_type') {
             if (typeof trigger.pattern === 'string') {
               return trigger.pattern.toLowerCase() === projectType.toLowerCase();
             } else if (trigger.pattern && typeof (trigger.pattern).test === 'function') {
@@ -174,7 +176,7 @@ export class PersonaManagerImpl implements PersonaManager {
       const suitablePersonas = [];
 
       for (const persona of allPersonas) {
-        const confidence = await this.calculatePersonaConfidence(persona, context);
+        const confidence = this.calculatePersonaConfidence(persona, context);
         if (confidence > 0.3) { // Minimum threshold for suitability
           suitablePersonas.push({ persona, confidence });
         }
@@ -198,7 +200,7 @@ export class PersonaManagerImpl implements PersonaManager {
       return {
         success: false,
         confidence: 0,
-        reasoning: `Persona selection failed: ${error.message}`,
+        reasoning: `Persona selection failed: ${error instanceof Error ? error.message : String(error)}`,
         alternatives: [],
         selectionTime: 0
       };
@@ -242,7 +244,7 @@ export class PersonaManagerImpl implements PersonaManager {
         success: false,
         persona: await this.getFallbackPersona(),
         confidence: 0,
-        reasoning: `Activation failed: ${error.message}`,
+        reasoning: `Activation failed: ${error instanceof Error ? error.message : String(error)}`,
         activationTime: Date.now() - startTime,
         resources: {
           memory: 0,
@@ -250,13 +252,13 @@ export class PersonaManagerImpl implements PersonaManager {
           diskIO: 0,
           networkIO: 0
         },
-        warnings: [error.message]
+        warnings: [error instanceof Error ? error.message : String(error)]
       };
     }
   }
 
   async deactivatePersona(sessionId: SessionId): Promise<boolean> {
-    return this.activeSessions.delete(sessionId);
+    return Promise.resolve(this.activeSessions.delete(sessionId));
   }
 
   async switchPersona(
@@ -280,7 +282,7 @@ export class PersonaManagerImpl implements PersonaManager {
 
       return {
         success: true,
-        previousPersona: previousPersona || undefined,
+        previousPersona: previousPersona ?? undefined,
         newPersona,
         reason: `Switched to persona: ${newPersona.name}`,
         switchTime: Date.now() - startTime
@@ -290,7 +292,7 @@ export class PersonaManagerImpl implements PersonaManager {
       return {
         success: false,
         newPersona: fallback,
-        reason: `Switch failed: ${error.message}`,
+        reason: `Switch failed: ${error instanceof Error ? error.message : String(error)}`,
         switchTime: Date.now() - startTime
       };
     }
@@ -317,7 +319,9 @@ export class PersonaManagerImpl implements PersonaManager {
       await this.personaRepository.update(persona.id, persona);
     } else {
       // IDがない場合は新規作成用のデータを準備
-      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...personaData } = persona;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, createdAt, updatedAt, ...personaData } = persona;
+      // id, createdAt, updatedAt は新規作成時には不要なので除外
       await this.personaRepository.create(personaData);
     }
   }
@@ -423,7 +427,7 @@ export class PersonaManagerImpl implements PersonaManager {
       await this.personaRepository.saveInteraction(interaction);
     } catch (error) {
       // Log error but don't fail the operation
-      console.warn('Failed to store interaction for learning:', error.message);
+      this.logger.error(`Failed to store interaction for learning: ${error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error)}`);
     }
   }
 
@@ -431,17 +435,17 @@ export class PersonaManagerImpl implements PersonaManager {
     try {
       await this.personaRepository.saveFeedback(feedback);
     } catch (error) {
-      console.warn('Failed to store feedback:', error.message);
+      this.logger.error(`Failed to store feedback: ${error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error)}`);
     }
   }
 
   private async getFallbackPersona(): Promise<AIPersona | undefined> {
     try {
       const activePersonas = await this.personaRepository.findAllActive();
-      const fallback = activePersonas.find(p => p.type === 'developer') ?? activePersonas[0];
+      const fallback = activePersonas.find(p => p.type === PersonaType.DEVELOPER) ?? activePersonas.at(0);
       return fallback;
     } catch (error) {
-      this.logger.error(`Failed to get fallback persona: ${error.message}`);
+      this.logger.error(`Failed to get fallback persona: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
     }
   }

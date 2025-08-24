@@ -138,7 +138,7 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     };
 
     this.personas.set(id, persona);
-    return persona;
+    return Promise.resolve(persona);
   }
 
   async update(id: PersonaId, updates: Partial<AIPersona>): Promise<AIPersona> {
@@ -155,7 +155,7 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     };
 
     this.personas.set(id, updated);
-    return updated;
+    return Promise.resolve(updated);
   }
 
   delete(id: PersonaId): Promise<boolean> {
@@ -181,7 +181,9 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     const archivedCount = this.archivedPersonas.size;
     
     const personasByType = (Object.values(PersonaType) as PersonaType[]).reduce((acc, type) => {
-      acc[type] = allPersonas.filter(p => p.type === type).length;
+      const typeKey = type as PersonaType;
+      // eslint-disable-next-line security/detect-object-injection
+      acc[typeKey] = allPersonas.filter(p => p.type === typeKey).length;
       return acc;
     }, {} as Record<PersonaType, number>);
 
@@ -190,7 +192,7 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       ? allFeedbacks.reduce((sum, f) => sum + f.rating, 0) / allFeedbacks.length 
       : 0;
 
-    return {
+    return Promise.resolve({
       totalPersonas: this.personas.size,
       activePersonas: activePersonas.length,
       archivedPersonas: archivedCount,
@@ -198,7 +200,7 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       averageRating,
       totalUsage: this.interactions.size,
       lastUpdated: Date.now() as Timestamp
-    };
+    });
   }
 
   saveInteraction(interaction: PersonaInteraction): Promise<void> {
@@ -233,21 +235,21 @@ export class InMemoryPersonaRepository extends PersonaRepository {
 
     // インタラクション数をカウント
     for (const interaction of this.interactions.values()) {
-      const count = usageCounts.get(interaction.personaId) || 0;
+      const count = usageCounts.get(interaction.personaId) ?? 0;
       usageCounts.set(interaction.personaId, count + 1);
     }
 
     // フィードバック評価を集計
     for (const feedback of this.feedbacks.values()) {
-      const personaRatings = ratings.get(feedback.personaId) || [];
+      const personaRatings = ratings.get(feedback.personaId) ?? [];
       personaRatings.push(feedback.rating);
       ratings.set(feedback.personaId, personaRatings);
     }
 
     const results = Array.from(this.personas.values())
       .map(persona => {
-        const usageCount = usageCounts.get(persona.id) || 0;
-        const personaRatings = ratings.get(persona.id) || [];
+        const usageCount = usageCounts.get(persona.id) ?? 0;
+        const personaRatings = ratings.get(persona.id) ?? [];
         const averageRating = personaRatings.length > 0
           ? personaRatings.reduce((sum, r) => sum + r, 0) / personaRatings.length
           : 0;

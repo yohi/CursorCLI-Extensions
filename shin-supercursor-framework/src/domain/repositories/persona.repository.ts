@@ -5,7 +5,8 @@
 
 import {
   PersonaId,
-  SessionId
+  SessionId,
+  UserId
 } from '../types/index.js';
 import {
   AIPersona,

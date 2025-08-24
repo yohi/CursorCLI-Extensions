@@ -22,10 +22,6 @@ import type {
   UserId as UserIdType,
   ProjectId as ProjectIdType,
   Timestamp as TimestampType,
-  DeepReadonly as DeepReadonlyType,
-  Optional as OptionalType,
-  NonEmptyArray as NonEmptyArrayType,
-  Result as ResultType,
   ValidationResult as ValidationResultType
 } from './base.js';
 import type { 
@@ -38,14 +34,14 @@ import type {
 import type { 
   ProjectContext as ProjectContextType,
   UserContext as UserContextType,
-  SessionContext as SessionContextType,
+  SessionContext as SessionContextType
+} from './context.js';
+import type { 
+  AIPersona as AIPersonaType,
   PersonaManager as PersonaManagerType,
   PersonaFactory as PersonaFactoryType,
   PersonaSelectionResult as PersonaSelectionResultType,
   PersonaActivationResult as PersonaActivationResultType
-} from './context.js';
-import type { 
-  AIPersona as AIPersonaType
 } from './personas.js';
 
 /**
@@ -85,11 +81,8 @@ export const SuperCursorErrors = {
 
 /**
  * ユーティリティ型のヘルパー
+ * 注意: 実際の型定義はbase.jsから再エクスポートされます
  */
-export type DeepReadonly<T> = DeepReadonlyType<T>;
-export type Optional<T, K extends keyof T> = OptionalType<T, K>;
-export type NonEmptyArray<T> = NonEmptyArrayType<T>;
-export type Result<T, E = Error> = ResultType<T, E>;
 
 /**
  * ドメイン固有の型定義
@@ -122,23 +115,7 @@ export interface DomainTypes {
 }
 
 // ドメイン型のエクスポート
-export type CommandCategory = import('./commands.js').CommandCategory;
-export type CommandPriority = import('./commands.js').CommandPriority;
-export type ExecutionStatus = import('./commands.js').ExecutionStatus;
-export type AttachmentType = import('./commands.js').AttachmentType;
-export type PersonaType = import('./personas.js').PersonaType;
-export type ExpertiseLevel = import('./personas.js').ExpertiseLevel;
-export type CapabilityCategory = import('./personas.js').CapabilityCategory;
-export type ResponseTone = import('./personas.js').ResponseTone;
-export type ResponseFormat = import('./personas.js').ResponseFormat;
-export type ProjectType = import('./context.js').ProjectType;
-export type FrameworkType = import('./context.js').FrameworkType;
-export type DatabaseType = import('./context.js').DatabaseType;
-export type ToolCategory = import('./context.js').ToolCategory;
-export type PlatformType = import('./context.js').PlatformType;
-export type SessionStatus = import('./context.js').SessionStatus;
-export type Theme = import('./context.js').Theme;
-export type ExperienceLevel = import('./context.js').ExperienceLevel;
+// 注意: 実際の型定義は各ファイルから再エクスポートされます
 
 /**
  * インフラストラクチャ層で使用される型定義
@@ -172,14 +149,8 @@ export type PackageManager = import('./context.js').PackageManager;
 export type OperatingSystem = import('./context.js').OperatingSystem;
 
 // enumのエクスポート
-export {
-  ProjectType,
-  SecurityRating,
-  ReliabilityRating,
-  MaintainabilityRating,
-  PackageManager,
-  OperatingSystem
-} from './context.js';
+// 注意: 上記でtypeエクスポート済みのため、重複を避ける
+// export { ReliabilityRating, MaintainabilityRating } from './context.js';
 
 /**
  * アプリケーション層で使用される型定義
@@ -201,14 +172,7 @@ export interface ApplicationTypes {
 }
 
 // アプリケーション型のエクスポート
-export type CommandHandler = CommandHandlerType;
-export type CommandRouter = CommandRouterType;
-export type CommandExecutionEngine = CommandExecutionEngineType;
-export type PersonaManager = PersonaManagerType;
-export type PersonaFactory = PersonaFactoryType;
-export type ValidationResult = ValidationResultType;
-export type PersonaSelectionResult = PersonaSelectionResultType;
-export type PersonaActivationResult = PersonaActivationResultType;
+// 注意: 実際の型定義は各ファイルから再エクスポートされます
 
 /**
  * プレゼンテーション層で使用される型定義
@@ -225,10 +189,7 @@ export interface PresentationTypes {
 }
 
 // プレゼンテーション型のエクスポート
-export type OutputFormat = import('./base.js').OutputFormat;
-export type VerbosityLevel = import('./base.js').VerbosityLevel;
-export type LogLevel = import('./base.js').LogLevel;
-export type NotificationType = import('./context.js').NotificationType;
+// 注意: 実際の型定義は各ファイルから再エクスポートされます
 
 // ==========================================
 // ベース型定義の再エクスポート（export * は除外して個別エクスポート）
@@ -249,12 +210,9 @@ export type {
 } from './base.js';
 
 // 列挙型エクスポート
+// 注意: 上記でtypeエクスポート済みのため、重複を避ける
 export {
-  ParameterType,
-  OutputFormat,
-  LogLevel,
-  ErrorSeverity,
-  VerbosityLevel
+  ParameterType
 } from './base.js';
 
 // エラークラスとインターフェース
@@ -265,7 +223,11 @@ export {
   CommandExecutionError,
   PersonaSelectionError,
   CacheError,
-  SecurityError
+  SecurityError,
+  LogLevel,
+  OutputFormat,
+  VerbosityLevel,
+  ErrorSeverity
 } from './base.js';
 
 export type {

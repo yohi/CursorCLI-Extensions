@@ -7,7 +7,7 @@ import {
   CommandId,
   SessionId,
   PersonaId,
-  UserId,
+
   Timestamp,
   OutputFormat,
   ParameterType,
@@ -402,6 +402,7 @@ export function createExecutionContext(
   // Create a safe copy of process.env with proper typing
   const envVariables: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(process.env)) {
+    // eslint-disable-next-line security/detect-object-injection
     envVariables[key] = value;
   }
   

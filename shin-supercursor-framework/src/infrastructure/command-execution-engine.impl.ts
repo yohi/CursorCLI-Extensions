@@ -9,7 +9,7 @@ import {
   AsyncCommandExecution,
   ExecutionStatus,
   ActiveExecution,
-  ExecutionProgress,
+
   CommandRouter
 } from '../domain/types/commands.js';
 import {
@@ -116,7 +116,7 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
 
       throw error instanceof FrameworkError 
         ? error 
-        : new CommandExecutionError(`Command execution failed: ${error.message}`);
+        : new CommandExecutionError(`Command execution failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -150,7 +150,7 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
     activeExecution.status = ExecutionStatus.RUNNING;
 
     // Clean up when done
-    executionPromise.finally(() => {
+    void executionPromise.finally(() => {
       this.executionPromises.delete(command.id);
     });
 
@@ -192,12 +192,12 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
 
   async getActiveExecutions(): Promise<readonly ActiveExecution[]> {
     // Return readonly view of active executions without AbortController
-    return Array.from(this.activeExecutions.values()).map(exec => ({
+    return Promise.resolve(Array.from(this.activeExecutions.values()).map(exec => ({
       commandId: exec.commandId,
       status: exec.status,
       startTime: exec.startTime,
       progress: exec.progress,
       estimatedCompletion: exec.estimatedCompletion
-    }));
+    })));
   }
 }

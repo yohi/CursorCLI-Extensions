@@ -11,7 +11,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 // アプリケーション層
 import { ExecuteSupercursorHandler } from './application/commands/execute-supercursor.handler.js';
 import { PersonaManagementService } from './application/services/persona-management.service.js';
-
 // インフラストラクチャ層
 import { CommandModule } from './infrastructure/modules/command.module.js';
 import { IntegrationModule } from './infrastructure/modules/integration.module.js';
@@ -29,6 +28,59 @@ export interface SuperCursorModuleOptions {
   logLevel?: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
   enableCaching?: boolean;
   enableMetrics?: boolean;
+}
+
+/**
+ * フレームワーク設定
+ */
+interface FrameworkConfig {
+  logLevel: string;
+  enableCaching: boolean;
+  cacheTimeout: number;
+  maxHistorySize: number;
+  enableValidation: boolean;
+  personas: {
+    enableAutoSelection: boolean;
+    enableLearning: boolean;
+    confidenceThreshold: number;
+    maxConcurrentPersonas: number;
+  };
+  security: {
+    enableSandbox: boolean;
+    maxExecutionTime: number;
+    allowedCommands: string[];
+    enableAuthentication?: boolean;
+    enableAuthorization?: boolean;
+    rateLimiting?: {
+      enabled: boolean;
+      maxRequestsPerMinute: number;
+      maxRequestsPerHour: number;
+    };
+    encryption?: {
+      enabled: boolean;
+      algorithm: string;
+    };
+  };
+  performance: {
+    enableMetrics: boolean;
+    metricsInterval: number;
+    enableProfiling: boolean;
+    maxMemoryUsage?: number;
+    gcOptimization?: {
+      enabled: boolean;
+      strategy: string;
+    };
+  };
+}
+
+/**
+ * モジュールプロバイダー
+ */
+interface ModuleProvider {
+  provide: string;
+  useValue?: unknown;
+  useFactory?: (...args: unknown[]) => unknown;
+  inject?: unknown[];
 }
 
 /**
@@ -77,7 +129,8 @@ export interface SuperCursorModuleOptions {
       enableMetrics: process.env.COMMAND_ENABLE_METRICS !== 'false',
       defaultTimeout: parseInt(process.env.COMMAND_DEFAULT_TIMEOUT ?? '30000'),
       maxConcurrentCommands: parseInt(process.env.MAX_CONCURRENT_COMMANDS ?? '10')
-    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any,
 
     // 統合モジュール
     IntegrationModule.forRoot()
@@ -105,7 +158,7 @@ export interface SuperCursorModuleOptions {
     // フレームワーク設定プロバイダー
     {
       provide: 'FRAMEWORK_CONFIG',
-      useFactory: () => ({
+      useFactory: (): FrameworkConfig => ({
         logLevel: process.env.LOG_LEVEL ?? 'info',
         enableCaching: process.env.ENABLE_CACHING !== 'false',
         cacheTimeout: parseInt(process.env.CACHE_TIMEOUT ?? '300000'),
@@ -118,6 +171,9 @@ export interface SuperCursorModuleOptions {
           maxConcurrentPersonas: parseInt(process.env.MAX_CONCURRENT_PERSONAS ?? '3')
         },
         security: {
+          enableSandbox: process.env.ENABLE_SANDBOX === 'true',
+          maxExecutionTime: parseInt(process.env.MAX_EXECUTION_TIME ?? '30000'),
+          allowedCommands: (process.env.ALLOWED_COMMANDS ?? 'analyze,help,version').split(','),
           enableAuthentication: process.env.ENABLE_AUTH === 'true',
           enableAuthorization: process.env.ENABLE_AUTHZ === 'true',
           rateLimiting: {
@@ -127,15 +183,14 @@ export interface SuperCursorModuleOptions {
           },
           encryption: {
             enabled: process.env.ENCRYPTION_ENABLED === 'true',
-            algorithm: process.env.ENCRYPTION_ALGORITHM ?? 'AES-256-GCM',
-            keyLength: parseInt(process.env.ENCRYPTION_KEY_LENGTH ?? '256')
+            algorithm: process.env.ENCRYPTION_ALGORITHM ?? 'AES-256-GCM'
           }
         },
         performance: {
           enableMetrics: process.env.ENABLE_METRICS !== 'false',
+          metricsInterval: parseInt(process.env.METRICS_INTERVAL ?? '60000'),
           enableProfiling: process.env.ENABLE_PROFILING === 'true',
-          maxMemoryUsage: parseInt(process.env.MAX_MEMORY_USAGE ?? '1000000000'),
-          commandTimeout: parseInt(process.env.COMMAND_TIMEOUT ?? '30000')
+          maxMemoryUsage: parseInt(process.env.MAX_MEMORY_USAGE ?? '1000000000')
         }
       })
     }
@@ -182,9 +237,9 @@ export class SuperCursorModule {
    * 非同期設定読み込みをサポート
    */
   static forRootAsync(options: {
-    useFactory: (...args: any[]) => Promise<SuperCursorModuleOptions> | SuperCursorModuleOptions;
-    inject?: any[];
-  }): { module: typeof SuperCursorModule; providers: any[] } {
+    useFactory: (...args: unknown[]) => Promise<SuperCursorModuleOptions> | SuperCursorModuleOptions;
+    inject?: unknown[];
+  }): { module: typeof SuperCursorModule; providers: ModuleProvider[] } {
     return {
       module: SuperCursorModule,
       providers: [

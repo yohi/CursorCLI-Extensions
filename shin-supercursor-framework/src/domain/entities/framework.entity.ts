@@ -6,6 +6,7 @@
 
 
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 
 import {
   Command,
@@ -13,11 +14,13 @@ import {
   ExecutionContext,
   CommandRouter,
   CommandExecutionEngine,
-  ParsedCommand
+  ParsedCommand,
+  CommandPriority
 } from '../types/commands.js';
 import {
   UserContext,
-  SessionContext
+  SessionContext,
+  SessionStatus
 } from '../types/context.js';
 import {
   CommandId,
@@ -31,9 +34,10 @@ import {
   CommandExecutionError,
   PersonaSelectionError,
   SecurityError,
-  LogLevel,
   DeepReadonly,
-  BaseEntity
+  BaseEntity,
+  LogLevel,
+  OutputFormat
 } from '../types/index.js';
 import {
   PersonaManager,
@@ -94,6 +98,7 @@ export interface PerformanceConfiguration {
 // ==========================================
 
 export interface FrameworkInitOptions {
+  readonly id?: string;
   readonly configPath?: string;
   readonly logLevel?: LogLevel;
   readonly enableCaching?: boolean;
@@ -182,7 +187,11 @@ export enum FrameworkEventType {
 // フレームワークエンティティ
 // ==========================================
 
-export class FrameworkEntity extends BaseEntity {
+export class FrameworkEntity extends EventEmitter implements BaseEntity {
+  readonly id: string;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  
   private _state: FrameworkState = FrameworkState.UNINITIALIZED;
   private _configuration: FrameworkConfiguration;
   private _startTime: Timestamp;
@@ -197,7 +206,14 @@ export class FrameworkEntity extends BaseEntity {
   constructor(
     private readonly options: FrameworkInitOptions = {}
   ) {
-    super();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    super(); // EventEmitterの初期化
+    
+    // BaseEntityプロパティの初期化
+    this.id = options.id ?? `framework_${Math.random().toString(36).substr(2, 9)}`;
+    this.createdAt = new Date();
+    this.updatedAt = new Date();
+    
     this._startTime = Date.now() as Timestamp;
     this._configuration = this.createDefaultConfiguration();
     this._statistics = this.createInitialStatistics();
@@ -288,7 +304,7 @@ export class FrameworkEntity extends BaseEntity {
     this.ensureReady();
     
     const startTime = Date.now() as Timestamp;
-    let command: Command;
+    let command: Command | undefined;
     let result: CommandResult;
 
     try {
@@ -315,6 +331,10 @@ export class FrameworkEntity extends BaseEntity {
 
       // 3. ペルソナ選択（コマンド構築前に実行し、コンテキストを更新）
       const personaResult = await this.selectPersona(parsedCommand, executionContext);
+      
+      // 変数宣言
+      let command: Command;
+      let result: CommandResult;
       if (personaResult.success && personaResult.selectedPersona) {
         // ペルソナをコンテキストに追加
         executionContext = {
@@ -324,9 +344,11 @@ export class FrameworkEntity extends BaseEntity {
       }
 
       // 4. コマンドオブジェクト構築（更新されたコンテキストを使用）
+      // eslint-disable-next-line prefer-const
       command = this.buildCommand(parsedCommand, executionContext);
 
       // 5. コマンド実行
+      // eslint-disable-next-line prefer-const
       result = await this._commandEngine.execute(command);
 
       // 6. 統計更新
@@ -341,11 +363,13 @@ export class FrameworkEntity extends BaseEntity {
         : new CommandExecutionError(`コマンド実行に失敗しました: ${this.formatErrorMessage(error)}`);
 
       // エラー結果を構築
+      const commandId = command?.id ?? ('' as CommandId);
+      const commandName = command?.name ?? 'unknown';
       result = {
-        commandId: command?.id || ('' as CommandId),
+        commandId,
         success: false,
         output: { data: null },
-        format: 'text' as const,
+        format: OutputFormat.TEXT,
         metadata: {
           executionTime: Date.now() - startTime,
           cacheHit: false,
@@ -363,7 +387,7 @@ export class FrameworkEntity extends BaseEntity {
       
       this.emitEvent({
         type: FrameworkEventType.ERROR_OCCURRED,
-        data: { error: frameworkError, command: command?.name }
+        data: { error: frameworkError, command: commandName }
       });
 
       return result;
@@ -386,7 +410,7 @@ export class FrameworkEntity extends BaseEntity {
       userId,
       startTime: new Date(),
       lastActivity: new Date(),
-      status: 'active',
+      status: SessionStatus.ACTIVE,
       environment: {
         ip: '127.0.0.1',
         userAgent: 'SuperCursor Framework',
@@ -568,7 +592,7 @@ export class FrameworkEntity extends BaseEntity {
 
   private createDefaultConfiguration(): FrameworkConfiguration {
     return {
-      logLevel: 'info',
+      logLevel: LogLevel.INFO,
       enableCaching: true,
       cacheTimeout: 300000, // 5分
       maxHistorySize: 1000,
@@ -639,7 +663,7 @@ export class FrameworkEntity extends BaseEntity {
       raw: parsedCommand.raw,
       executionContext,
       metadata: {
-        priority: 'normal',
+        priority: CommandPriority.NORMAL,
         timeout: this._configuration.performance.commandTimeout,
         retryable: false,
         maxRetries: 0,
@@ -746,11 +770,11 @@ export class FrameworkEntity extends BaseEntity {
   private getLastError(): FrameworkError | undefined {
     // Scan from the end without mutating the array
     for (let i = this._eventHistory.length - 1; i >= 0; i--) {
+      // eslint-disable-next-line security/detect-object-injection
       const event = this._eventHistory[i];
       if (event.type === FrameworkEventType.ERROR_OCCURRED) {
         // Check if the error data is a FrameworkError instance or JSON
-        // eslint-disable-next-line security/detect-object-injection
-        const errorData = event.data.error;
+        const errorData = event.data?.error;
         if (errorData instanceof FrameworkError) {
           return errorData;
         }

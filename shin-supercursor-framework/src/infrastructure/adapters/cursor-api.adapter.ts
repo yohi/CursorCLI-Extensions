@@ -10,7 +10,8 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import {
   FrameworkError,
-  DeepReadonly
+  DeepReadonly,
+  ErrorSeverity
 } from '../../domain/types/index.js';
 
 /**
@@ -54,7 +55,7 @@ export interface CursorCommandResult {
  */
 export class CursorApiError extends FrameworkError {
   public readonly code = 'CURSOR_API_ERROR';
-  public readonly severity = 'high' as const;
+  public readonly severity = ErrorSeverity.HIGH;
   public readonly recoverable = true;
 
   constructor(
@@ -66,14 +67,19 @@ export class CursorApiError extends FrameworkError {
   }
 }
 
-export class CursorTimeoutError extends CursorApiError {
+export class CursorTimeoutError extends FrameworkError {
   public readonly code = 'CURSOR_TIMEOUT_ERROR';
+  public readonly severity = ErrorSeverity.HIGH;
   public readonly recoverable = false;
+  
+  constructor(message: string, public readonly timeout: number) {
+    super(message);
+  }
 }
 
-export class CursorNotFoundError extends CursorApiError {
+export class CursorNotFoundError extends FrameworkError {
   public readonly code = 'CURSOR_NOT_FOUND_ERROR';
-  public readonly severity = 'critical' as const;
+  public readonly severity = ErrorSeverity.CRITICAL;
   public readonly recoverable = false;
 }
 
@@ -196,6 +202,7 @@ export class CursorApiAdapter {
     try {
       if (content !== undefined) {
         // ファイルに内容を書き込み
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
         await fsPromises.writeFile(filePath, content, { encoding: options.encoding ?? 'utf8' });
       }
       
@@ -309,7 +316,7 @@ export class CursorApiAdapter {
         if (killTimeoutId) clearTimeout(killTimeoutId);
         
         if (timedOut) {
-          reject(new CursorTimeoutError(`Command timed out after ${timeout}ms`));
+          reject(new CursorTimeoutError(`Command timed out after ${timeout}ms`, timeout));
           return;
         }
 
@@ -339,6 +346,7 @@ export class CursorApiAdapter {
     let quoteChar = '';
 
     for (let i = 0; i < command.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection
       const char = command[i];
       
       if (!inQuotes && (char === '"' || char === "'")) {
