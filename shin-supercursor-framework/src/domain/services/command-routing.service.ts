@@ -344,7 +344,7 @@ export class CommandRoutingService implements CommandRouter {
     options: Record<string, string | boolean>;
   } {
     const args: string[] = [];
-    const options: Record<string, string | boolean> = {};
+    const options: Record<string, string | boolean> = Object.create(null);
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts.at(i);
@@ -352,33 +352,30 @@ export class CommandRoutingService implements CommandRouter {
       
       if (part.startsWith('--')) {
         // 長いオプション (--option=value または --option value)
-        const [key, ...valueParts] = part.substring(2).split('=');
+        const [rawKey, ...valueParts] = part.substring(2).split('=');
+        const key = this.sanitizeOptionKey(rawKey);
         if (key && valueParts.length > 0) {
-          // eslint-disable-next-line security/detect-object-injection
           if (key) { options[key] = valueParts.join('='); }
         } else if (key && i + 1 < parts.length) {
           const nextPart = parts.at(i + 1);
           if (nextPart && !nextPart.startsWith('-')) {
-            // eslint-disable-next-line security/detect-object-injection
             options[key] = nextPart;
             i++;
           }
         } else if (key) {
-          // eslint-disable-next-line security/detect-object-injection
           options[key] = true;
         }
       } else if (part.startsWith('-') && part.length > 1) {
         // 短いオプション (-o value または -o)
-        const key = part.substring(1);
+        const rawKey = part.substring(1);
+        const key = this.sanitizeOptionKey(rawKey);
         if (key && i + 1 < parts.length) {
           const nextPart = parts.at(i + 1);
           if (nextPart && !nextPart.startsWith('-')) {
-            // eslint-disable-next-line security/detect-object-injection
             options[key] = nextPart;
             i++;
           }
         } else if (key) {
-          // eslint-disable-next-line security/detect-object-injection
           options[key] = true;
         }
       } else {
@@ -653,5 +650,16 @@ export class CommandRoutingService implements CommandRouter {
    */
   private formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  /**
+   * オプションキーのサニタイズ（プロトタイプ汚染対策）
+   */
+  private sanitizeOptionKey(key: string): string {
+    const k = key.trim();
+    if (!k || /^(?:__proto__|prototype|constructor)$/i.test(k)) {
+      return `invalid_${Date.now()}`;
+    }
+    return k;
   }
 }
