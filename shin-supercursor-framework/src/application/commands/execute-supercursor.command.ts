@@ -3,20 +3,23 @@
  * NestJS CQRS パターンに基づくコマンド定義
  */
 
+
+import {
+  ExecutionContext,
+  ParsedCommand
+} from '../../domain/types/commands.js';
 import {
   CommandId,
   SessionId,
-  UserId,
-  DeepReadonly
+  ProjectId,
+  DeepReadonly,
+  ProjectType,
+  SecurityRating,
+  ReliabilityRating,
+  MaintainabilityRating,
+  PackageManager,
+  OperatingSystem
 } from '../../domain/types/index.js';
-
-import {
-  ExecutionContext
-} from '../../domain/types/commands.js';
-
-import {
-  ParsedCommand
-} from '../../domain/types/commands.js';
 
 /**
  * SuperCursorコマンド実行コマンド
@@ -60,10 +63,10 @@ export class ExecuteSupercursorCommand {
     // 最小限のプロジェクトコンテキストを作成
     // 実際の実装では、プロジェクト分析サービスを使用
     return {
-      id: 'project_default' as any,
+      id: 'project_default' as ProjectId,
       rootPath: workingDirectory,
       name: 'Unknown Project',
-      type: 'library',
+      type: ProjectType.LIBRARY,
       technologies: {
         languages: [],
         frameworks: [],
@@ -103,7 +106,7 @@ export class ExecuteSupercursorCommand {
           },
           security: {
             vulnerabilities: 0,
-            securityRating: 'A',
+            securityRating: SecurityRating.A,
             securityDebt: 0
           },
           performance: {
@@ -114,22 +117,26 @@ export class ExecuteSupercursorCommand {
           },
           maintainability: {
             technicalDebt: 0,
-            reliabilityRating: 'A',
-            maintainabilityRating: 'A'
+            reliabilityRating: ReliabilityRating.A,
+            maintainabilityRating: MaintainabilityRating.A
           }
         }
       },
       environment: {
-        packageManager: 'npm',
-        operatingSystem: process.platform as any,
+        packageManager: PackageManager.NPM,
+        operatingSystem: process.platform as OperatingSystem,
         architecture: process.arch,
-        environmentVariables: process.env as DeepReadonly<Record<string, string>>,
+        environmentVariables: Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([, value]) => value !== undefined
+          ) as [string, string][]
+        ) as DeepReadonly<Record<string, string>>,
         paths: {
-          home: process.env.HOME || process.env.USERPROFILE || '',
-          temp: process.env.TMPDIR || process.env.TEMP || '/tmp',
-          config: process.env.XDG_CONFIG_HOME || '',
-          cache: process.env.XDG_CACHE_HOME || '',
-          data: process.env.XDG_DATA_HOME || ''
+          home: process.env.HOME ?? process.env.USERPROFILE ?? '',
+          temp: process.env.TMPDIR ?? process.env.TEMP ?? '/tmp',
+          config: process.env.XDG_CONFIG_HOME ?? '',
+          cache: process.env.XDG_CACHE_HOME ?? '',
+          data: process.env.XDG_DATA_HOME ?? ''
         }
       },
       createdAt: new Date(),

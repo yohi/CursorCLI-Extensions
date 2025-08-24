@@ -3,27 +3,27 @@
  * NestJS CQRS パターンに基づくコマンドハンドラー
  */
 
-import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
 import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
 
+import { CommandRoutingService } from '../../domain/services/command-routing.service.js';
+import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
+import {
+  ExecutionContext
+} from '../../domain/types/commands.js';
 import {
   CommandResult,
   CommandExecutionError,
   PersonaSelectionError
 } from '../../domain/types/index.js';
-
 import {
   PersonaSelectionResult,
   AIPersona
 } from '../../domain/types/personas.js';
 
-import {
-  ExecutionContext
-} from '../../domain/types/commands.js';
 
 import { ExecuteSupercursorCommand } from './execute-supercursor.command.js';
-import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
-import { CommandRoutingService } from '../../domain/services/command-routing.service.js';
+
 
 /**
  * SuperCursorコマンド実行ハンドラー
@@ -67,7 +67,7 @@ export class ExecuteSupercursorHandler
 
     try {
       // 1. コンテキスト分析
-      const context = await this.analyzeContext(command);
+      const context = this.analyzeContext(command);
 
       // 2. ペルソナ選択 (Framework-1 インターフェース活用)
       const personaResult = await this.selectPersona(context);
@@ -84,7 +84,7 @@ export class ExecuteSupercursorHandler
       const result = await this.executeCommand(command, context, selectedPersona);
 
       // 4. イベント発行
-      await this.publishExecutionEvent(command, result, selectedPersona);
+      this.publishExecutionEvent(command, result, selectedPersona);
 
       const duration = Date.now() - startTime;
       this.logger.log(`Command completed successfully in ${duration}ms`, 'CommandHandler');
@@ -97,21 +97,24 @@ export class ExecuteSupercursorHandler
       this.logger.error(`Command execution failed after ${duration}ms: ${normalized.message}`, normalized.stack);
       
       // エラーイベントを発行
-      await this.publishErrorEvent(command, normalized);
+      this.publishErrorEvent(command, normalized);
       
-      throw new CommandExecutionError(normalized.message, {
-        commandId: command.id,
-        sessionId: command.sessionId,
-        duration,
-        originalError: normalized.stack
-      });
+      throw new CommandExecutionError(
+        normalized.message,
+        {
+          commandId: command.id,
+          sessionId: command.sessionId,
+          duration,
+          originalError: normalized.stack
+        }
+      );
     }
   }
 
   /**
    * コンテキストを分析する
    */
-  private async analyzeContext(command: ExecuteSupercursorCommand): Promise<ExecutionContext> {
+  private analyzeContext(command: ExecuteSupercursorCommand): ExecutionContext {
     // Framework-1 の ContextAnalyzer 統合
     // 実際の実装では、プロジェクト構造、技術スタック、ユーザー履歴などを分析
     return {
@@ -197,36 +200,37 @@ export class ExecuteSupercursorHandler
     } catch (error: unknown) {
       const normalized = this.normalizeError(error);
       // 実行エラーを適切にラップ
-      throw new CommandExecutionError(`コマンド実行エラー: ${normalized.message}`, {
-        commandName: command.parsedCommand.name,
-        personaId: persona?.id,
-        originalError: normalized.stack
-      });
+      throw new CommandExecutionError(
+        `コマンド実行エラー: ${normalized.message}`,
+        {
+          commandName: command.parsedCommand.name,
+          personaId: persona?.id,
+          originalError: normalized.stack
+        }
+      );
     }
   }
 
   /**
    * 実行完了イベントを発行する
    */
-  private async publishExecutionEvent(
+  private publishExecutionEvent(
     command: ExecuteSupercursorCommand,
-    result: CommandResult,
-    persona?: any
-  ): Promise<void> {
+    _result: CommandResult,
+    _persona?: AIPersona
+  ): void {
     try {
-      const event = {
-        commandId: command.id,
-        sessionId: command.sessionId,
-        personaId: persona?.id,
-        result,
-        timestamp: new Date()
-      };
-
       // カスタムイベントクラスが定義されている場合はそれを使用
-      // await this.eventBus.publish(new SupercursorCommandExecutedEvent(event));
+      // await this.eventBus.publish(new SupercursorCommandExecutedEvent({
+      //   commandId: command.id,
+      //   sessionId: command.sessionId,
+      //   personaId: persona?.id,
+      //   result,
+      //   timestamp: new Date()
+      // }));
       
       // 暫定的にログ出力
-      this.logger.log(`Event published: command executed`, 'EventBus');
+      this.logger.log(`Event published: command executed for ${command.id}`, 'EventBus');
       
     } catch (error: unknown) {
       const normalized = this.normalizeError(error);
@@ -238,21 +242,22 @@ export class ExecuteSupercursorHandler
   /**
    * エラーイベントを発行する
    */
-  private async publishErrorEvent(
-    command: ExecuteSupercursorCommand,
-    error: Error
-  ): Promise<void> {
+  private publishErrorEvent(
+    _command: ExecuteSupercursorCommand,
+    _error: Error
+  ): void {
     try {
-      const event = {
-        commandId: command.id,
-        sessionId: command.sessionId,
-        error: {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        },
-        timestamp: new Date()
-      };
+      // カスタムイベントクラスが定義されている場合はそれを使用
+      // await this.eventBus.publish(new SupercursorCommandErrorEvent({
+      //   commandId: command.id,
+      //   sessionId: command.sessionId,
+      //   error: {
+      //     message: error.message,
+      //     stack: error.stack,
+      //     name: error.name
+      //   },
+      //   timestamp: new Date()
+      // }));
 
       // カスタムイベントクラスが定義されている場合はそれを使用
       // await this.eventBus.publish(new SupercursorCommandFailedEvent(event));

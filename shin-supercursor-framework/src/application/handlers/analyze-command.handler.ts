@@ -10,14 +10,17 @@ import {
   CommandHandler as BaseCommandHandler,
   CommandResult,
   Command,
-  AnalyzeCommand,
   CommandParameter,
   ValidationResult,
+  ValidationError,
+  ValidationWarning,
   ParsedCommand,
   ParameterType,
   CommandCategory,
   isAnalyzeCommand,
-  CommandExecutionError
+  CommandExecutionError,
+  ErrorSeverity,
+  OutputFormat
 } from '../../domain/types/index.js';
 
 /**
@@ -96,6 +99,13 @@ export interface QualityMetrics {
 @Injectable()
 export class AnalyzeCommandHandler implements BaseCommandHandler {
   private readonly logger = new Logger(AnalyzeCommandHandler.name);
+
+  /**
+   * エラーオブジェクトを正規化してError-likeオブジェクトに変換する
+   */
+  private normalizeError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
+  }
 
   public readonly name = 'analyze';
   public readonly description = 'プロジェクトまたはファイルのコード分析を実行します';
@@ -193,37 +203,23 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
    * コマンドバリデーション
    */
   async validate(command: Command): Promise<ValidationResult> {
-    const errors: import('../../domain/types/index.js').ValidationError[] = [];
-    const warnings: import('../../domain/types/index.js').ValidationWarning[] = [];
+    const errors: ValidationError[] = [];
+    const warnings: ValidationWarning[] = [];
 
     if (!isAnalyzeCommand(command)) {
-      errors.push({
-        code: 'INVALID_COMMAND_TYPE',
-        message: 'このハンドラーはanalyzeコマンド専用です',
-        severity: 'error'
-      });
+      errors.push(new ValidationError('このハンドラーはanalyzeコマンド専用です'));
     }
 
     // ターゲットパスの検証
     const target = command.arguments[0] || command.options.target || './src';
     if (typeof target !== 'string') {
-      errors.push({
-        code: 'INVALID_TARGET',
-        message: 'ターゲットパスは文字列である必要があります',
-        field: 'target',
-        severity: 'error'
-      });
+      errors.push(new ValidationError('ターゲットパスは文字列である必要があります'));
     }
 
     // 出力形式の検証
     const outputFormat = command.options['output-format'] || 'text';
-    if (!['json', 'text', 'markdown'].includes(outputFormat)) {
-      errors.push({
-        code: 'INVALID_OUTPUT_FORMAT',
-        message: '出力形式はjson、text、markdownのいずれかである必要があります',
-        field: 'output-format',
-        severity: 'error'
-      });
+    if (!['json', 'text', 'markdown'].includes(outputFormat as string)) {
+      errors.push(new ValidationError('出力形式はjson、text、markdownのいずれかである必要があります'));
     }
 
     // パフォーマンス警告
@@ -257,19 +253,19 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
       const options = this.parseAnalysisOptions(command);
       
       // 分析実行
-      const analysisResult = await this.performAnalysis(
+      const analysisResult = this.performAnalysis(
         command.arguments[0] || './src',
         options,
         command.executionContext
       );
 
       // 結果をフォーマット
-      const output = await this.formatOutput(analysisResult, options.outputFormat);
+      const output = this.formatOutput(analysisResult, options.outputFormat);
 
       const executionTime = Date.now() - startTime;
 
       // 分析完了イベントを発行
-      await this.publishAnalysisCompletedEvent(command, analysisResult);
+      this.publishAnalysisCompletedEvent(command, analysisResult);
 
       this.logger.log(`Analysis completed in ${executionTime}ms`);
 
@@ -281,7 +277,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
           summary: `分析完了: ${analysisResult.fileCount}ファイル、${analysisResult.lineCount}行を分析`,
           details: analysisResult
         },
-        format: options.outputFormat === 'json' ? 'json' : 'text',
+        format: options.outputFormat as import('../../domain/types/index.js').OutputFormat,
         metadata: {
           executionTime,
           cacheHit: false, // TODO: キャッシング実装時に更新
@@ -299,15 +295,16 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
         }
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const normalized = this.normalizeError(error);
       const executionTime = Date.now() - startTime;
-      this.logger.error(`Analysis failed: ${error.message}`, error.stack);
+      this.logger.error(`Analysis failed: ${normalized.message}`, normalized.stack);
 
       return {
         commandId: command.id,
         success: false,
         output: { data: null },
-        format: 'text',
+        format: OutputFormat.TEXT,
         metadata: {
           executionTime,
           cacheHit: false,
@@ -318,7 +315,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
             networkIO: 0
           }
         },
-        errors: [new CommandExecutionError(error.message)],
+        errors: [new CommandExecutionError(normalized.message)],
         performance: {
           startTime: startTime as import('../../domain/types/base.js').Timestamp,
           endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
@@ -337,20 +334,20 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
       includeDependencies: command.options['include-dependencies'] === true,
       patterns: this.parseArrayOption(command.options.patterns),
       excludePatterns: this.parseArrayOption(command.options.exclude),
-      outputFormat: command.options['output-format'] || 'text',
-      maxDepth: (() => {
+      outputFormat: (command.options['output-format'] as 'json' | 'text' | 'markdown') || 'text',
+      maxDepth: ((): number | undefined => {
         const maxDepthValue = command.options['max-depth'];
         if (maxDepthValue === undefined || maxDepthValue === null) return undefined;
-        const parsed = Number.parseInt(String(maxDepthValue), 10);
+        const parsed = parseInt(String(maxDepthValue), 10);
         return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
       })(),
       includeMetrics: command.options['include-metrics'] !== false
     };
   }
 
-  private parseArrayOption(value: any): string[] | undefined {
+  private parseArrayOption(value: unknown): string[] | undefined {
     if (Array.isArray(value)) {
-      return value;
+      return value.map(item => String(item));
     }
     if (typeof value === 'string') {
       return value.split(',').map(s => s.trim());
@@ -358,11 +355,11 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
     return undefined;
   }
 
-  private async performAnalysis(
+  private performAnalysis(
     target: string,
-    options: AnalysisOptions,
-    context: import('../../domain/types/commands.js').ExecutionContext
-  ): Promise<AnalysisResult> {
+    _options: AnalysisOptions,
+    _context: import('../../domain/types/commands.js').ExecutionContext
+  ): AnalysisResult {
     this.logger.debug(`Performing analysis on: ${target}`);
 
     // ここでFramework-2のAnalysisEngineの機能を統合
@@ -428,7 +425,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
     return result;
   }
 
-  private async formatOutput(result: AnalysisResult, format: string): Promise<any> {
+  private formatOutput(result: AnalysisResult, format: string): string | AnalysisResult {
     switch (format) {
       case 'json':
         return result;
@@ -464,7 +461,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
     if (result.technologies.length > 0) {
       lines.push('【検出技術】');
       result.technologies.forEach(tech => {
-        lines.push(`- ${tech.name} ${tech.version || ''} (${Math.round(tech.confidence * 100)}%信頼度, ${tech.usage}%使用)`);
+        lines.push(`- ${tech.name} ${tech.version ?? ''} (${Math.round(tech.confidence * 100)}%信頼度, ${tech.usage}%使用)`);
       });
       lines.push('');
     }
@@ -527,7 +524,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
       lines.push('## 検出技術');
       lines.push('');
       result.technologies.forEach(tech => {
-        lines.push(`- **${tech.name}** ${tech.version || ''} (${Math.round(tech.confidence * 100)}%信頼度, ${tech.usage}%使用)`);
+        lines.push(`- **${tech.name}** ${tech.version ?? ''} (${Math.round(tech.confidence * 100)}%信頼度, ${tech.usage}%使用)`);
       });
       lines.push('');
     }
@@ -552,15 +549,16 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
     return lines.join('\n');
   }
 
-  private async publishAnalysisCompletedEvent(
+  private publishAnalysisCompletedEvent(
     command: Command,
-    result: AnalysisResult
-  ): Promise<void> {
+    _result: AnalysisResult
+  ): void {
     try {
       // カスタムイベントを発行（実装時にイベントクラスを定義）
       this.logger.debug(`Published analysis completed event for command: ${command.id}`);
     } catch (error) {
-      this.logger.error(`Failed to publish analysis completed event: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to publish analysis completed event: ${errorMessage}`);
     }
   }
 }

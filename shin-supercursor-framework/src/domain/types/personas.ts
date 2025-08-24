@@ -13,11 +13,9 @@ import {
   VerbosityLevel,
   DeepReadonly,
   BaseEntity,
-  NonEmptyArray,
   isPersonaId
 } from './base.js';
-
-import { Command, ExecutionContext } from './commands.js';
+import { ExecutionContext } from './commands.js';
 
 // ==========================================
 // ペルソナ基本定義
@@ -197,6 +195,9 @@ export interface ResponseStyle {
   readonly includeReferences: boolean;
   readonly customization: StyleCustomization;
 }
+
+// PersonaResponseStyle エイリアス (互換性のため)
+export type PersonaResponseStyle = ResponseStyle;
 
 export enum ResponseTone {
   FORMAL = 'formal',

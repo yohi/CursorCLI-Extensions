@@ -3,14 +3,6 @@
  */
 
 import {
-  CommandId,
-  Timestamp,
-  FrameworkError,
-  CommandExecutionError,
-  DeepReadonly
-} from '../domain/types/index.js';
-
-import {
   Command,
   CommandResult,
   CommandExecutionEngine,
@@ -20,6 +12,13 @@ import {
   ExecutionProgress,
   CommandRouter
 } from '../domain/types/commands.js';
+import {
+  CommandId,
+  Timestamp,
+  FrameworkError,
+  CommandExecutionError
+} from '../domain/types/index.js';
+
 
 export interface CommandExecutionEngineConfig {
   readonly maxConcurrentExecutions: number;
@@ -121,6 +120,7 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async executeAsync(command: Command): Promise<AsyncCommandExecution> {
     const startTime = Date.now();
 
@@ -161,6 +161,7 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async cancel(commandId: CommandId): Promise<boolean> {
     const activeExecution = this.activeExecutions.get(commandId);
     
@@ -183,9 +184,10 @@ export class CommandExecutionEngineImpl implements CommandExecutionEngine {
     return true;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async getExecutionStatus(commandId: CommandId): Promise<ExecutionStatus> {
     const activeExecution = this.activeExecutions.get(commandId);
-    return activeExecution?.status || ExecutionStatus.COMPLETED;
+    return activeExecution?.status ?? ExecutionStatus.COMPLETED;
   }
 
   async getActiveExecutions(): Promise<readonly ActiveExecution[]> {

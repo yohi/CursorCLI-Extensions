@@ -5,12 +5,8 @@
 
 import {
   PersonaId,
-  SessionId,
-  UserId,
-  DeepReadonly,
-  Result
+  SessionId
 } from '../types/index.js';
-
 import {
   AIPersona,
   PersonaFilter,

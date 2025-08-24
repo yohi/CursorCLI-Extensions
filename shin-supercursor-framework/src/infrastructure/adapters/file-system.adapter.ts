@@ -3,13 +3,13 @@
  * Framework-2のFileSystemHandlerをアダプターパターンで実装
  */
 
-import { Injectable, Logger } from '@nestjs/common';
 import { promises as fs, constants as fsConstants, Stats, watch, FSWatcher, realpathSync } from 'fs';
-import { join, resolve, relative, dirname, basename, extname, isAbsolute } from 'path';
+import { join, resolve, relative, dirname, isAbsolute } from 'path';
+
+import { Injectable, Logger } from '@nestjs/common';
 
 import {
-  FrameworkError,
-  DeepReadonly
+  FrameworkError
 } from '../../domain/types/index.js';
 
 /**
@@ -120,10 +120,10 @@ export class FileSystemAdapter {
     this.config = {
       allowedPaths: [process.cwd()],
       deniedPaths: ['/etc', '/usr', '/bin', '/sbin', '/var'],
-      maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB
+      maxFileSize: parseInt(process.env.MAX_FILE_SIZE ?? '10485760'), // 10MB
       enableWatching: process.env.ENABLE_FILE_WATCHING !== 'false',
       watchIgnorePatterns: ['node_modules', '.git', 'dist', 'build'],
-      maxWatchers: parseInt(process.env.MAX_FILE_WATCHERS || '100'),
+      maxWatchers: parseInt(process.env.MAX_FILE_WATCHERS ?? '100'),
       ...config
     };
   }
@@ -157,9 +157,10 @@ export class FileSystemAdapter {
         throw error;
       }
       
-      if (error?.code === 'ENOENT') {
+      const nodeError = error as NodeJS.ErrnoException | undefined;
+      if (nodeError?.code === 'ENOENT') {
         throw new FileNotFoundError(`File not found: ${filePath}`);
-      } else if (error?.code === 'EACCES') {
+      } else if (nodeError?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${filePath}`);
       } else {
         throw new FileSystemError(`Failed to read file: ${error instanceof Error ? error.message : String(error)}`);
@@ -219,9 +220,10 @@ export class FileSystemAdapter {
         throw error;
       }
       
-      if (error?.code === 'EACCES') {
+      const nodeError = error as NodeJS.ErrnoException | undefined;
+      if (nodeError?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${filePath}`);
-      } else if (error?.code === 'ENOENT') {
+      } else if (nodeError?.code === 'ENOENT') {
         throw new FileSystemError(`Directory not found: ${dirname(filePath)}`);
       } else {
         throw new FileSystemError(`Failed to write file: ${error instanceof Error ? error.message : String(error)}`);
@@ -308,9 +310,10 @@ export class FileSystemAdapter {
         throw error;
       }
       
-      if (error?.code === 'ENOENT') {
+      const nodeError = error as NodeJS.ErrnoException | undefined;
+      if (nodeError?.code === 'ENOENT') {
         throw new FileNotFoundError(`Directory not found: ${dirPath}`);
-      } else if (error?.code === 'EACCES') {
+      } else if (nodeError?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${dirPath}`);
       } else {
         throw new FileSystemError(`Failed to list directory: ${error instanceof Error ? error.message : String(error)}`);
@@ -385,12 +388,13 @@ export class FileSystemAdapter {
       await fs.mkdir(absolutePath, { recursive });
       this.logger.debug(`Directory created: ${dirPath}`);
     } catch (error) {
-      if (error?.code === 'EEXIST') {
+      const nodeError = error as NodeJS.ErrnoException | undefined;
+      if (nodeError?.code === 'EEXIST') {
         // ディレクトリが既に存在する場合は成功とみなす
         return;
       }
       
-      if (error?.code === 'EACCES') {
+      if (nodeError?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${dirPath}`);
       } else {
         throw new FileSystemError(`Failed to create directory: ${error instanceof Error ? error.message : String(error)}`);
@@ -414,6 +418,7 @@ export class FileSystemAdapter {
   /**
    * ファイル監視を開始
    */
+  // eslint-disable-next-line @typescript-eslint/require-await
   async watchFile(
     path: string,
     callback: FileWatchCallback,
@@ -477,6 +482,7 @@ export class FileSystemAdapter {
   /**
    * ファイル監視を停止
    */
+  // eslint-disable-next-line @typescript-eslint/require-await
   async unwatchFile(watchId: string): Promise<boolean> {
     const watcher = this.watchers.get(watchId);
     
@@ -511,7 +517,7 @@ export class FileSystemAdapter {
   /**
    * 設定を取得
    */
-  getConfig(): DeepReadonly<FileSystemConfig> {
+  getConfig(): Readonly<FileSystemConfig> {
     return this.config;
   }
 
@@ -563,9 +569,10 @@ export class FileSystemAdapter {
     try {
       await fs.access(path, mode);
     } catch (error) {
-      if (error?.code === 'ENOENT') {
+      const nodeError = error as NodeJS.ErrnoException | undefined;
+      if (nodeError?.code === 'ENOENT') {
         throw new FileNotFoundError(`Path not found: ${path}`);
-      } else if (error?.code === 'EACCES') {
+      } else if (nodeError?.code === 'EACCES') {
         throw new FilePermissionError(`Permission denied: ${path}`);
       } else {
         throw new FileSystemError(`Access check failed: ${error instanceof Error ? error.message : String(error)}`);

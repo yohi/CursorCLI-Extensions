@@ -4,25 +4,21 @@
  */
 
 import { Module, DynamicModule } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { CqrsModule } from '@nestjs/cqrs';
-
-// エンティティ
-import {
-  PersonaEntity,
-  PersonaInteractionEntity,
-  PersonaFeedbackEntity
-} from '../persistence/persona.repository.impl.js';
-
-// リポジトリ
-import { PersonaRepository } from '../../domain/repositories/persona.repository.js';
-import { PersonaRepositoryImpl } from '../persistence/persona.repository.impl.js';
-
-// ドメインサービス
-import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 // アプリケーションサービス
 import { PersonaManagementService } from '../../application/services/persona-management.service.js';
+// ドメインリポジトリとサービス
+import { PersonaRepository } from '../../domain/repositories/persona.repository.js';
+import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
+// インフラストラクチャー実装
+import {
+  PersonaEntity,
+  PersonaInteractionEntity,
+  PersonaFeedbackEntity,
+  PersonaRepositoryImpl
+} from '../persistence/persona.repository.impl.js';
 
 // ファクトリー（実装予定）
 // import { PersonaFactoryImpl } from '../factories/persona.factory.impl.js';
@@ -41,9 +37,36 @@ export interface PersonaModuleOptions {
  * ペルソナモジュール非同期設定
  */
 export interface PersonaModuleAsyncOptions {
-  readonly imports?: any[];
-  readonly useFactory: (...args: any[]) => Promise<PersonaModuleOptions> | PersonaModuleOptions;
-  readonly inject?: any[];
+  readonly imports?: unknown[];
+  readonly useFactory: (...args: unknown[]) => Promise<PersonaModuleOptions> | PersonaModuleOptions;
+  readonly inject?: unknown[];
+}
+
+/**
+ * ペルソナスペック
+ */
+export interface PersonaSpec {
+  readonly name: string;
+  readonly type: string;
+}
+
+/**
+ * ペルソナ作成結果
+ */
+export interface PersonaCreationResult {
+  readonly id: string;
+  readonly name: string;
+  readonly type: string;
+}
+
+/**
+ * ペルソナ検証結果
+ */
+export interface PersonaValidationResult {
+  readonly valid: boolean;
+  readonly errors: string[];
+  readonly warnings: string[];
+  readonly suggestions: string[];
 }
 
 /**
@@ -94,7 +117,7 @@ export interface PersonaManagementConfig {
     {
       provide: 'PERSONA_FACTORY',
       useValue: {
-        createPersona: async (spec: any) => {
+        createPersona: (spec: PersonaSpec): PersonaCreationResult => {
           // モック実装
           return {
             id: 'persona_mock',
@@ -103,19 +126,19 @@ export interface PersonaManagementConfig {
             // ... 他の必須プロパティ
           };
         },
-        validatePersona: async (persona: any) => ({
+        validatePersona: (_persona: unknown): PersonaValidationResult => ({
           valid: true,
           errors: [],
           warnings: [],
           suggestions: []
         }),
-        clonePersona: async (personaId: any, customizations: any) => {
+        clonePersona: (_personaId: unknown, _customizations: unknown): PersonaCreationResult => {
           // モック実装
-          return {} as any;
+          return {} as PersonaCreationResult;
         },
-        buildFromTemplate: async (template: any, parameters: any) => {
+        buildFromTemplate: (_template: unknown, _parameters: unknown): PersonaCreationResult => {
           // モック実装
-          return {} as any;
+          return {} as PersonaCreationResult;
         }
       }
     },
@@ -137,7 +160,7 @@ export class PersonaModule {
   /**
    * 動的設定でモジュールを構成
    */
-  static forRoot(options: PersonaModuleOptions = {}) {
+  static forRoot(options: PersonaModuleOptions = {}): DynamicModule {
     return {
       module: PersonaModule,
       providers: [
@@ -147,12 +170,12 @@ export class PersonaModule {
         },
         {
           provide: 'PERSONA_MANAGEMENT_CONFIG',
-          useFactory: (opts: PersonaModuleOptions) => ({
-            maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
-            selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
+          useFactory: (opts: PersonaModuleOptions): PersonaManagementConfig => ({
+            maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS ?? '5', 10),
+            selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT ?? '5000', 10),
             enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
             enableCaching: opts.enableCaching ?? (process.env.PERSONA_ENABLE_CACHING !== 'false'),
-            cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000', 10),
+            cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT ?? '300000', 10),
             enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false',
           }),
           inject: ['PERSONA_MODULE_OPTIONS'],
@@ -167,21 +190,21 @@ export class PersonaModule {
   static forRootAsync(options: PersonaModuleAsyncOptions): DynamicModule {
     return {
       module: PersonaModule,
-      imports: options.imports || [],
+      imports: options.imports ?? [],
       providers: [
         {
           provide: 'PERSONA_MODULE_OPTIONS',
           useFactory: options.useFactory,
-          inject: options.inject || []
+          inject: options.inject ?? []
         },
         {
           provide: 'PERSONA_MANAGEMENT_CONFIG',
-          useFactory: async (opts: PersonaModuleOptions): Promise<PersonaManagementConfig> => ({
-            maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS || '5', 10),
-            selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT || '5000', 10),
+          useFactory: (opts: PersonaModuleOptions): PersonaManagementConfig => ({
+            maxActivePersonas: opts.maxActivePersonas ?? parseInt(process.env.MAX_ACTIVE_PERSONAS ?? '5', 10),
+            selectionTimeoutMs: opts.selectionTimeoutMs ?? parseInt(process.env.PERSONA_SELECTION_TIMEOUT ?? '5000', 10),
             enableLearning: opts.enableLearning ?? (process.env.PERSONA_ENABLE_LEARNING !== 'false'),
             enableCaching: opts.enableCaching ?? (process.env.PERSONA_ENABLE_CACHING !== 'false'),
-            cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT || '300000', 10),
+            cacheTimeoutMs: parseInt(process.env.PERSONA_CACHE_TIMEOUT ?? '300000', 10),
             enableMetrics: process.env.PERSONA_ENABLE_METRICS !== 'false',
           }),
           inject: ['PERSONA_MODULE_OPTIONS'],

@@ -7,10 +7,10 @@ import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 
 // ドメインサービス
+import { AnalyzeCommandHandler } from '../../application/handlers/analyze-command.handler.js';
 import { CommandRoutingService } from '../../domain/services/command-routing.service.js';
 
 // アプリケーションハンドラー
-import { AnalyzeCommandHandler } from '../../application/handlers/analyze-command.handler.js';
 
 // 将来追加予定のハンドラー
 // import { ImplementCommandHandler } from '../../application/handlers/implement-command.handler.js';
@@ -95,8 +95,8 @@ export class CommandModule {
             enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
             enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
             enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
-            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
-            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
+            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT ?? '30000', 10),
+            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS ?? '10', 10),
           }),
           inject: ['COMMAND_MODULE_OPTIONS'],
         }
@@ -108,8 +108,8 @@ export class CommandModule {
    * 非同期設定でモジュールを構成
    */
   static forRootAsync(options: {
-    useFactory: (...args: any[]) => Promise<CommandModuleOptions> | CommandModuleOptions;
-    inject?: any[];
+    useFactory: (...args: unknown[]) => Promise<CommandModuleOptions> | CommandModuleOptions;
+    inject?: (string | symbol)[];
   }) {
     return {
       module: CommandModule,
@@ -117,7 +117,7 @@ export class CommandModule {
         {
           provide: 'COMMAND_MODULE_OPTIONS',
           useFactory: options.useFactory,
-          inject: options.inject || []
+          inject: options.inject ?? []
         },
         {
           provide: 'COMMAND_ROUTING_CONFIG',
@@ -125,8 +125,8 @@ export class CommandModule {
             enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
             enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
             enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
-            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT || '30000', 10),
-            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS || '10', 10),
+            defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT ?? '30000', 10),
+            maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS ?? '10', 10),
           }),
           inject: ['COMMAND_MODULE_OPTIONS'],
         }

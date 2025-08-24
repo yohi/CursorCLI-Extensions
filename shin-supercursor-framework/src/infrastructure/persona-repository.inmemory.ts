@@ -5,18 +5,15 @@
 
 import {
   PersonaRepository,
-  PersonaRepositoryError,
   PersonaNotFoundError,
   PersonaDuplicateError
 } from '../domain/repositories/persona.repository.js';
-
 import {
   PersonaId,
   SessionId,
   UserId,
   Timestamp
 } from '../domain/types/base.js';
-
 import {
   AIPersona,
   PersonaFilter,
@@ -34,18 +31,18 @@ export class InMemoryPersonaRepository extends PersonaRepository {
   private feedbacks = new Map<string, PersonaFeedback>();
   private archivedPersonas = new Set<PersonaId>();
 
-  async findById(id: PersonaId): Promise<AIPersona | null> {
-    return this.personas.get(id) || null;
+  findById(id: PersonaId): Promise<AIPersona | null> {
+    return Promise.resolve(this.personas.get(id) ?? null);
   }
 
-  async findByIds(ids: readonly PersonaId[]): Promise<readonly AIPersona[]> {
-    return ids.map(id => this.personas.get(id)).filter(Boolean) as AIPersona[];
+  findByIds(ids: readonly PersonaId[]): Promise<readonly AIPersona[]> {
+    return Promise.resolve(ids.map(id => this.personas.get(id)).filter(Boolean) as AIPersona[]);
   }
 
-  async findByFilter(filter: PersonaFilter): Promise<readonly AIPersona[]> {
+  findByFilter(filter: PersonaFilter): Promise<readonly AIPersona[]> {
     const allPersonas = Array.from(this.personas.values());
     
-    return allPersonas.filter(persona => {
+    const filteredPersonas = allPersonas.filter(persona => {
       if (filter.types && !filter.types.includes(persona.type)) return false;
       if (filter.active !== undefined && persona.configuration.active !== filter.active) return false;
       if (filter.minConfidence !== undefined && persona.configuration.confidenceThreshold < filter.minConfidence) return false;
@@ -58,6 +55,8 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       
       return true;
     });
+    
+    return Promise.resolve(filteredPersonas);
   }
 
   async search(query: PersonaSearchQuery): Promise<readonly PersonaSearchResult[]> {
@@ -100,27 +99,27 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       .filter(result => result.relevanceScore > 0)
       .sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-    return query.limit ? results.slice(0, query.limit) : results;
+    return Promise.resolve(query.limit ? results.slice(0, query.limit) : results);
   }
 
-  async findAllActive(): Promise<readonly AIPersona[]> {
-    return Array.from(this.personas.values()).filter(persona => persona.configuration.active);
+  findAllActive(): Promise<readonly AIPersona[]> {
+    return Promise.resolve(Array.from(this.personas.values()).filter(persona => persona.configuration.active));
   }
 
-  async findByTechnology(technology: string): Promise<readonly AIPersona[]> {
-    return Array.from(this.personas.values()).filter(persona =>
+  findByTechnology(technology: string): Promise<readonly AIPersona[]> {
+    return Promise.resolve(Array.from(this.personas.values()).filter(persona =>
       persona.expertise.some(exp => exp.technologies.includes(technology))
-    );
+    ));
   }
 
-  async findByExpertiseDomain(domain: string): Promise<readonly AIPersona[]> {
-    return Array.from(this.personas.values()).filter(persona =>
+  findByExpertiseDomain(domain: string): Promise<readonly AIPersona[]> {
+    return Promise.resolve(Array.from(this.personas.values()).filter(persona =>
       persona.expertise.some(exp => exp.domain === domain)
-    );
+    ));
   }
 
-  async findByType(type: PersonaType): Promise<readonly AIPersona[]> {
-    return Array.from(this.personas.values()).filter(persona => persona.type === type);
+  findByType(type: PersonaType): Promise<readonly AIPersona[]> {
+    return Promise.resolve(Array.from(this.personas.values()).filter(persona => persona.type === type));
   }
 
   async create(personaData: Omit<AIPersona, 'id' | 'createdAt' | 'updatedAt'>): Promise<AIPersona> {
@@ -134,8 +133,8 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     const persona: AIPersona = {
       ...personaData,
       id,
-      createdAt: now,
-      updatedAt: now
+      createdAt: new Date(now),
+      updatedAt: new Date(now)
     };
 
     this.personas.set(id, persona);
@@ -152,19 +151,19 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       ...existing,
       ...updates,
       id, // IDは変更不可
-      updatedAt: Date.now() as Timestamp
+      updatedAt: new Date()
     };
 
     this.personas.set(id, updated);
     return updated;
   }
 
-  async delete(id: PersonaId): Promise<boolean> {
-    return this.personas.delete(id);
+  delete(id: PersonaId): Promise<boolean> {
+    return Promise.resolve(this.personas.delete(id));
   }
 
-  async exists(id: PersonaId): Promise<boolean> {
-    return this.personas.has(id);
+  exists(id: PersonaId): Promise<boolean> {
+    return Promise.resolve(this.personas.has(id));
   }
 
   async count(filter?: PersonaFilter): Promise<number> {
@@ -202,27 +201,29 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     };
   }
 
-  async saveInteraction(interaction: PersonaInteraction): Promise<void> {
+  saveInteraction(interaction: PersonaInteraction): Promise<void> {
     this.interactions.set(interaction.id, interaction);
+    return Promise.resolve();
   }
 
-  async saveFeedback(feedback: PersonaFeedback): Promise<void> {
+  saveFeedback(feedback: PersonaFeedback): Promise<void> {
     this.feedbacks.set(feedback.id, feedback);
+    return Promise.resolve();
   }
 
-  async getSessionHistory(sessionId: SessionId): Promise<readonly PersonaInteraction[]> {
-    return Array.from(this.interactions.values())
+  getSessionHistory(sessionId: SessionId): Promise<readonly PersonaInteraction[]> {
+    return Promise.resolve(Array.from(this.interactions.values())
       .filter(interaction => interaction.sessionId === sessionId)
-      .sort((a, b) => b.timestamp - a.timestamp);
+      .sort((a, b) => b.timestamp - a.timestamp));
   }
 
-  async getUserHistory(userId: UserId): Promise<readonly PersonaInteraction[]> {
-    return Array.from(this.interactions.values())
+  getUserHistory(userId: UserId): Promise<readonly PersonaInteraction[]> {
+    return Promise.resolve(Array.from(this.interactions.values())
       .filter(interaction => interaction.userId === userId)
-      .sort((a, b) => b.timestamp - a.timestamp);
+      .sort((a, b) => b.timestamp - a.timestamp));
   }
 
-  async getPopularPersonas(limit = 10): Promise<readonly {
+  getPopularPersonas(limit = 10): Promise<readonly {
     persona: AIPersona;
     usageCount: number;
     averageRating: number;
@@ -255,10 +256,10 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       })
       .sort((a, b) => b.usageCount - a.usageCount);
 
-    return results.slice(0, limit);
+    return Promise.resolve(results.slice(0, limit));
   }
 
-  async getRecommendedPersonas(userId: UserId, limit = 5): Promise<readonly AIPersona[]> {
+  async getRecommendedPersonas(_userId: UserId, limit = 5): Promise<readonly AIPersona[]> {
     // 簡易実装：アクティブなペルソナを返す
     const activePersonas = await this.findAllActive();
     return activePersonas.slice(0, limit);
@@ -300,10 +301,10 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       return { persona, similarityScore };
     });
 
-    return similarities
+    return Promise.resolve(similarities
       .filter(s => s.similarityScore > 0)
       .sort((a, b) => b.similarityScore - a.similarityScore)
-      .slice(0, limit);
+      .slice(0, limit));
   }
 
   async createMany(personasData: readonly Omit<AIPersona, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<readonly AIPersona[]> {
@@ -344,7 +345,7 @@ export class InMemoryPersonaRepository extends PersonaRepository {
     return deletedCount;
   }
 
-  async findArchived(): Promise<readonly AIPersona[]> {
+  findArchived(): Promise<readonly AIPersona[]> {
     const archived: AIPersona[] = [];
     
     for (const personaId of this.archivedPersonas) {
@@ -354,20 +355,20 @@ export class InMemoryPersonaRepository extends PersonaRepository {
       }
     }
     
-    return archived;
+    return Promise.resolve(archived);
   }
 
-  async archive(id: PersonaId): Promise<boolean> {
+  archive(id: PersonaId): Promise<boolean> {
     if (!this.personas.has(id)) {
-      return false;
+      return Promise.resolve(false);
     }
     
     this.archivedPersonas.add(id);
-    return true;
+    return Promise.resolve(true);
   }
 
-  async unarchive(id: PersonaId): Promise<boolean> {
-    return this.archivedPersonas.delete(id);
+  unarchive(id: PersonaId): Promise<boolean> {
+    return Promise.resolve(this.archivedPersonas.delete(id));
   }
 
   async transaction<T>(operation: (repo: PersonaRepository) => Promise<T>): Promise<T> {

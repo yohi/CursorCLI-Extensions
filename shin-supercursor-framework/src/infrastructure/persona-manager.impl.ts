@@ -2,14 +2,17 @@
  * PersonaManager concrete implementation
  */
 
+import { PersonaRepository } from '../domain/repositories/persona.repository.js';
+import { PersonaSelectionService } from '../domain/services/persona-selection.service.js';
+import {
+  ExecutionContext
+} from '../domain/types/commands.js';
 import {
   PersonaId,
   SessionId,
-  Timestamp,
   FrameworkError,
   ValidationError
 } from '../domain/types/index.js';
-
 import {
   AIPersona,
   PersonaManager,
@@ -25,12 +28,7 @@ import {
   PersonaType
 } from '../domain/types/personas.js';
 
-import {
-  ExecutionContext
-} from '../domain/types/commands.js';
 
-import { PersonaRepository } from '../domain/repositories/persona.repository.js';
-import { PersonaSelectionService } from '../domain/services/persona-selection.service.js';
 
 export interface PersonaManagerConfig {
   readonly enableLearning: boolean;
@@ -92,7 +90,8 @@ export class PersonaManagerImpl implements PersonaManager {
         executionContext: context
       };
     } catch (error) {
-      throw new FrameworkError(`Context analysis failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new FrameworkError(`Context analysis failed: ${errorMessage}`);
     }
   }
 
@@ -152,8 +151,8 @@ export class PersonaManagerImpl implements PersonaManager {
           if (trigger.type === 'project_type') {
             if (typeof trigger.pattern === 'string') {
               return trigger.pattern.toLowerCase() === projectType.toLowerCase();
-            } else if (trigger.pattern && typeof (trigger.pattern as any).test === 'function') {
-              return (trigger.pattern as RegExp).test(projectType);
+            } else if (trigger.pattern && typeof (trigger.pattern).test === 'function') {
+              return (trigger.pattern).test(projectType);
             }
           }
           return false;
@@ -215,11 +214,11 @@ export class PersonaManagerImpl implements PersonaManager {
     try {
       const persona = await this.personaRepository.findById(personaId);
       if (!persona) {
-        throw new ValidationError(`Persona not found: ${personaId}`);
+        throw new FrameworkError(`Persona not found: ${personaId}`);
       }
 
       if (!persona.configuration.active) {
-        throw new ValidationError(`Persona is not active: ${personaId}`);
+        throw new FrameworkError(`Persona is not active: ${personaId}`);
       }
 
       // Track active session
@@ -318,8 +317,7 @@ export class PersonaManagerImpl implements PersonaManager {
       await this.personaRepository.update(persona.id, persona);
     } else {
       // IDがない場合は新規作成用のデータを準備
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, createdAt, updatedAt, ...personaData } = persona;
+      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...personaData } = persona;
       await this.personaRepository.create(personaData);
     }
   }
@@ -440,7 +438,7 @@ export class PersonaManagerImpl implements PersonaManager {
   private async getFallbackPersona(): Promise<AIPersona | undefined> {
     try {
       const activePersonas = await this.personaRepository.findAllActive();
-      const fallback = activePersonas.find(p => p.type === 'developer') || activePersonas[0];
+      const fallback = activePersonas.find(p => p.type === 'developer') ?? activePersonas[0];
       return fallback;
     } catch (error) {
       this.logger.error(`Failed to get fallback persona: ${error.message}`);

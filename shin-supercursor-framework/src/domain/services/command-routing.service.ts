@@ -4,25 +4,23 @@
  */
 
 import {
-  CommandId,
-  PersonaId,
-  Timestamp,
-  FrameworkError,
-  ValidationError,
-  CommandExecutionError,
-  createCommandId
-} from '../types/index.js';
-
-import {
   Command,
   ParsedCommand,
   CommandResult,
   CommandHandler,
   CommandRouter,
   ExecutionContext,
-  CommandCategory,
   CommandPriority
 } from '../types/commands.js';
+import {
+  CommandId,
+  Timestamp,
+  ValidationError,
+  CommandExecutionError,
+  createCommandId,
+  ParameterType
+} from '../types/index.js';
+
 
 /**
  * コマンドルーティング設定
@@ -54,19 +52,17 @@ export class CommandRoutingService implements CommandRouter {
    * コマンド文字列を解析してParseCommandを生成
    */
   async parseCommand(input: string): Promise<ParsedCommand> {
-    const startTime = Date.now();
-
     try {
       // 基本的なコマンド解析
       const trimmed = input.trim();
       
       if (!trimmed) {
-        throw new ValidationError('空のコマンドは解析できません');
+        throw new ValidationError('空のコマンドは解析できません', { specificCode: 'INPUT_EMPTY' } as const);
       }
 
       // コマンド部分とオプション部分を分割
       const parts = this.splitCommandParts(trimmed);
-      const commandName = parts.shift()?.toLowerCase() || '';
+      const commandName = parts.shift()?.toLowerCase() ?? '';
       
       // エイリアス解決
       const resolvedName = this.resolveAlias(commandName);
@@ -79,20 +75,20 @@ export class CommandRoutingService implements CommandRouter {
         version: '1.0.0',
         timestamp: Date.now() as Timestamp,
         confidence: this.calculateParseConfidence(resolvedName, args, options),
-        alternatives: await this.generateAlternatives(resolvedName, args)
+        alternatives: this.generateAlternatives(resolvedName, args)
       };
 
-      return {
+      return await Promise.resolve({
         name: resolvedName,
         subcommand: this.extractSubcommand(args),
         arguments: args.filter(arg => !arg.startsWith('-')),
         options,
         raw: input,
         parseMetadata
-      };
+      });
 
     } catch (error) {
-      throw new ValidationError(`コマンド解析エラー: ${error.message}`);
+      throw new ValidationError(`コマンド解析エラー: ${this.formatErrorMessage(error)}`, { specificCode: 'PARSE_ERROR' } as const);
     }
   }
 
@@ -100,19 +96,17 @@ export class CommandRoutingService implements CommandRouter {
    * パース済みコマンドを検証
    */
   async validateCommand(command: ParsedCommand): Promise<import('../types/index.js').ValidationResult> {
-    const errors: import('../types/index.js').ValidationError[] = [];
+    const errors: ValidationError[] = [];
     const warnings: import('../types/index.js').ValidationWarning[] = [];
 
     try {
       // ハンドラーの存在確認
       const handler = this.handlers.get(command.name);
       if (!handler) {
-        errors.push({
-          code: 'HANDLER_NOT_FOUND',
-          message: `コマンド '${command.name}' のハンドラーが見つかりません`,
-          field: 'name',
-          severity: 'error'
-        });
+        errors.push(new ValidationError(`コマンド '${command.name}' のハンドラーが見つかりません`, {
+          specificCode: 'HANDLER_NOT_FOUND',
+          field: 'name'
+        } as const));
       } else {
         // ハンドラー固有のバリデーション
         if (handler.validate) {
@@ -122,35 +116,41 @@ export class CommandRoutingService implements CommandRouter {
           // warnings.push(...handlerValidation.warnings);
         }
 
-        // パラメータバリデーション
+        // パラメータバリデーション  
         const paramValidation = this.validateParameters(command, handler);
-        errors.push(...paramValidation.errors);
-        warnings.push(...paramValidation.warnings);
+        for (const error of paramValidation.errors) {
+          errors.push(error);
+        }
+        for (const warning of paramValidation.warnings) {
+          warnings.push(warning);
+        }
       }
 
       // 構文バリデーション
       const syntaxValidation = this.validateSyntax(command);
-      errors.push(...syntaxValidation.errors);
-      warnings.push(...syntaxValidation.warnings);
+      for (const error of syntaxValidation.errors) {
+        errors.push(error);
+      }
+      for (const warning of syntaxValidation.warnings) {
+        warnings.push(warning);
+      }
 
-      return {
+      return await Promise.resolve({
         valid: errors.length === 0,
         errors,
         warnings
-      };
-
-    } catch (error) {
-      errors.push({
-        code: 'VALIDATION_ERROR',
-        message: `バリデーションエラー: ${error.message}`,
-        severity: 'error'
       });
 
-      return {
+    } catch (error) {
+      errors.push(new ValidationError(`バリデーションエラー: ${this.formatErrorMessage(error)}`, {
+        specificCode: 'VALIDATION_ERROR'
+      } as const));
+
+      return await Promise.resolve({
         valid: false,
         errors,
         warnings
-      };
+      });
     }
   }
 
@@ -167,12 +167,12 @@ export class CommandRoutingService implements CommandRouter {
       // ハンドラーを取得
       const handler = this.handlers.get(parsedCommand.name);
       if (!handler) {
-        throw new CommandExecutionError(`コマンドハンドラーが見つかりません: ${parsedCommand.name}`);
+        throw new CommandExecutionError(`コマンドハンドラーが見つかりません: ${parsedCommand.name}`, { specificCode: 'HANDLER_NOT_FOUND' } as const);
       }
 
       // ハンドラーが対応可能か確認
       if (!handler.canHandle(parsedCommand)) {
-        throw new CommandExecutionError(`コマンドハンドラーがコマンドを処理できません: ${parsedCommand.name}`);
+        throw new CommandExecutionError(`コマンドハンドラーがコマンドを処理できません: ${parsedCommand.name}`, { specificCode: 'HANDLER_CANNOT_HANDLE' } as const);
       }
 
       // Commandオブジェクトを構築
@@ -180,7 +180,7 @@ export class CommandRoutingService implements CommandRouter {
 
       // 並行実行数チェック
       if (this.executionQueue.size >= this.config.maxConcurrentCommands) {
-        throw new CommandExecutionError('並行実行数の上限に達しています');
+        throw new CommandExecutionError('並行実行数の上限に達しています', { specificCode: 'MAX_CONCURRENT_EXCEEDED' } as const);
       }
 
       // コマンド実行
@@ -212,7 +212,7 @@ export class CommandRoutingService implements CommandRouter {
             networkIO: 0
           }
         },
-        errors: [error instanceof FrameworkError ? error : new CommandExecutionError(error.message)],
+        errors: [error instanceof FrameworkError ? error : new CommandExecutionError(this.formatErrorMessage(error), { specificCode: 'EXECUTION_ERROR' } as const)],
         performance: {
           startTime: startTime as Timestamp,
           endTime: Date.now() as Timestamp,
@@ -229,7 +229,7 @@ export class CommandRoutingService implements CommandRouter {
     const name = handler.name.toLowerCase();
     
     if (this.handlers.has(name)) {
-      throw new ValidationError(`ハンドラーが既に登録されています: ${name}`);
+      throw new ValidationError(`ハンドラーが既に登録されています: ${name}`, { specificCode: 'HANDLER_ALREADY_EXISTS' } as const);
     }
 
     this.handlers.set(name, handler);
@@ -237,10 +237,12 @@ export class CommandRoutingService implements CommandRouter {
     // エイリアスを登録
     for (const alias of handler.aliases) {
       if (this.aliases.has(alias.toLowerCase())) {
-        throw new ValidationError(`エイリアスが既に使用されています: ${alias}`);
+        throw new ValidationError(`エイリアスが既に使用されています: ${alias}`, { specificCode: 'ALIAS_ALREADY_EXISTS' } as const);
       }
       this.aliases.set(alias.toLowerCase(), name);
     }
+
+    return await Promise.resolve();
   }
 
   /**
@@ -251,7 +253,7 @@ export class CommandRoutingService implements CommandRouter {
     const handler = this.handlers.get(lowerName);
     
     if (!handler) {
-      return false;
+      return await Promise.resolve(false);
     }
 
     // ハンドラーを削除
@@ -262,22 +264,22 @@ export class CommandRoutingService implements CommandRouter {
       this.aliases.delete(alias.toLowerCase());
     }
 
-    return true;
+    return await Promise.resolve(true);
   }
 
   /**
    * 登録済みハンドラーを取得
    */
   async getRegisteredHandlers(): Promise<readonly CommandHandler[]> {
-    return Array.from(this.handlers.values());
+    return await Promise.resolve(Array.from(this.handlers.values()));
   }
 
   /**
    * コマンド履歴を取得
    */
-  async getCommandHistory(sessionId: import('../types/index.js').SessionId): Promise<readonly import('../types/commands.js').CommandHistoryEntry[]> {
+  async getCommandHistory(_sessionId: import('../types/index.js').SessionId): Promise<readonly import('../types/commands.js').CommandHistoryEntry[]> {
     // TODO: 履歴リポジトリから取得
-    return [];
+    return await Promise.resolve([]);
   }
 
   // プライベートメソッド
@@ -321,7 +323,7 @@ export class CommandRoutingService implements CommandRouter {
 
     // 閉じられていない引用符の検証
     if (inQuotes) {
-      throw new ValidationError(`閉じられていない引用符があります: ${quoteChar}`);
+      throw new ValidationError(`閉じられていない引用符があります: ${quoteChar}`, { specificCode: 'UNCLOSED_QUOTE' } as const);
     }
 
     if (current.trim()) {
@@ -332,35 +334,36 @@ export class CommandRoutingService implements CommandRouter {
   }
 
   private resolveAlias(commandName: string): string {
-    return this.aliases.get(commandName) || commandName;
+    return this.aliases.get(commandName) ?? commandName;
   }
 
   private parseArgumentsAndOptions(parts: string[]): {
     arguments: string[];
-    options: Record<string, any>;
+    options: Record<string, string | boolean>;
   } {
     const args: string[] = [];
-    const options: Record<string, any> = {};
+    const options: Record<string, string | boolean> = {};
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
+      if (!part) continue;
       
       if (part.startsWith('--')) {
         // 長いオプション (--option=value または --option value)
         const [key, ...valueParts] = part.substring(2).split('=');
-        if (valueParts.length > 0) {
+        if (key && valueParts.length > 0) {
           options[key] = valueParts.join('=');
-        } else if (i + 1 < parts.length && !parts[i + 1].startsWith('-')) {
+        } else if (key && i + 1 < parts.length && parts[i + 1] && !parts[i + 1].startsWith('-')) {
           options[key] = parts[++i];
-        } else {
+        } else if (key) {
           options[key] = true;
         }
       } else if (part.startsWith('-') && part.length > 1) {
         // 短いオプション (-o value または -o)
         const key = part.substring(1);
-        if (i + 1 < parts.length && !parts[i + 1].startsWith('-')) {
+        if (key && i + 1 < parts.length && parts[i + 1] && !parts[i + 1].startsWith('-')) {
           options[key] = parts[++i];
-        } else {
+        } else if (key) {
           options[key] = true;
         }
       } else {
@@ -385,7 +388,7 @@ export class CommandRoutingService implements CommandRouter {
     return undefined;
   }
 
-  private calculateParseConfidence(name: string, args: string[], options: Record<string, any>): number {
+  private calculateParseConfidence(name: string, args: string[], options: Record<string, string | boolean>): number {
     let confidence = 0.5; // ベース信頼度
 
     // ハンドラーが存在する場合
@@ -406,7 +409,7 @@ export class CommandRoutingService implements CommandRouter {
     return Math.min(confidence, 1.0);
   }
 
-  private async generateAlternatives(name: string, args: string[]): Promise<ParsedCommand[]> {
+  private generateAlternatives(name: string, args: string[]): ParsedCommand[] {
     // 類似コマンドの提案を生成
     const alternatives: ParsedCommand[] = [];
     
@@ -441,32 +444,38 @@ export class CommandRoutingService implements CommandRouter {
     }
 
     for (let j = 0; j <= len2; j++) {
-      matrix[0][j] = j;
+      if (matrix[0]) {
+        matrix[0][j] = j;
+      }
     }
 
     for (let i = 1; i <= len1; i++) {
       for (let j = 1; j <= len2; j++) {
-        if (str1[i - 1] === str2[j - 1]) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j] + 1,      // 削除
-            matrix[i][j - 1] + 1,      // 挿入
-            matrix[i - 1][j - 1] + 1   // 置換
-          );
+        const currentRow = matrix[i];
+        const prevRow = matrix[i - 1];
+        
+        if (currentRow && prevRow && str1[i - 1] === str2[j - 1]) {
+          currentRow[j] = prevRow[j - 1] ?? 0;
+        } else if (currentRow && prevRow) {
+          const deletionCost = (prevRow[j] ?? 0) + 1;
+          const insertionCost = (currentRow[j - 1] ?? 0) + 1;
+          const substitutionCost = (prevRow[j - 1] ?? 0) + 1;
+          currentRow[j] = Math.min(deletionCost, insertionCost, substitutionCost);
         }
       }
     }
 
     const maxLen = Math.max(len1, len2);
-    return maxLen === 0 ? 1 : 1 - (matrix[len1][len2] / maxLen);
+    const finalRow = matrix[len1];
+    const distance = finalRow ? (finalRow[len2] ?? 0) : 0;
+    return maxLen === 0 ? 1 : 1 - (distance / maxLen);
   }
 
   private validateParameters(
     command: ParsedCommand,
     handler: CommandHandler
-  ): { errors: import('../types/index.js').ValidationError[]; warnings: import('../types/index.js').ValidationWarning[]; } {
-    const errors: import('../types/index.js').ValidationError[] = [];
+  ): { errors: ValidationError[]; warnings: import('../types/index.js').ValidationWarning[]; } {
+    const errors: ValidationError[] = [];
     const warnings: import('../types/index.js').ValidationWarning[] = [];
 
     // 必須パラメータのチェック
@@ -477,12 +486,10 @@ export class CommandRoutingService implements CommandRouter {
       const hasOption = command.options[param.name] !== undefined;
       
       if (!hasArgument && !hasOption) {
-        errors.push({
-          code: 'MISSING_REQUIRED_PARAMETER',
-          message: `必須パラメータが不足しています: ${param.name}`,
-          field: param.name,
-          severity: 'error'
-        });
+        errors.push(new ValidationError(`必須パラメータが不足しています: ${param.name}`, {
+          specificCode: 'MISSING_REQUIRED_PARAMETER',
+          field: param.name
+        } as const));
       }
     }
 
@@ -493,12 +500,10 @@ export class CommandRoutingService implements CommandRouter {
       if (value !== undefined) {
         const typeValid = this.validateParameterType(value, param.type);
         if (!typeValid) {
-          errors.push({
-            code: 'INVALID_PARAMETER_TYPE',
-            message: `パラメータの型が不正です: ${param.name} (期待: ${param.type})`,
-            field: param.name,
-            severity: 'error'
-          });
+          errors.push(new ValidationError(`パラメータの型が不正です: ${param.name} (期待: ${param.type})`, {
+            specificCode: 'INVALID_PARAMETER_TYPE',
+            field: param.name
+          } as const));
         }
       }
     }
@@ -507,20 +512,18 @@ export class CommandRoutingService implements CommandRouter {
   }
 
   private validateSyntax(command: ParsedCommand): {
-    errors: import('../types/index.js').ValidationError[];
+    errors: ValidationError[];
     warnings: import('../types/index.js').ValidationWarning[];
   } {
-    const errors: import('../types/index.js').ValidationError[] = [];
+    const errors: ValidationError[] = [];
     const warnings: import('../types/index.js').ValidationWarning[] = [];
 
     // コマンド名の検証
     if (!/^[a-zA-Z][a-zA-Z0-9-_]*$/.test(command.name)) {
-      errors.push({
-        code: 'INVALID_COMMAND_NAME',
-        message: `コマンド名が不正です: ${command.name}`,
-        field: 'name',
-        severity: 'error'
-      });
+      errors.push(new ValidationError(`コマンド名が不正です: ${command.name}`, {
+        specificCode: 'INVALID_COMMAND_NAME',
+        field: 'name'
+      } as const));
     }
 
     // 引数の数制限
@@ -535,15 +538,15 @@ export class CommandRoutingService implements CommandRouter {
     return { errors, warnings };
   }
 
-  private validateParameterType(value: any, type: import('../types/index.js').ParameterType): boolean {
+  private validateParameterType(value: unknown, type: ParameterType): boolean {
     switch (type) {
-      case 'string':
+      case ParameterType.STRING:
         return typeof value === 'string';
-      case 'number':
+      case ParameterType.NUMBER:
         return !isNaN(Number(value));
-      case 'boolean':
+      case ParameterType.BOOLEAN:
         return value === 'true' || value === 'false' || typeof value === 'boolean';
-      case 'array':
+      case ParameterType.ARRAY:
         return Array.isArray(value) || typeof value === 'string';
       default:
         return true;
@@ -577,9 +580,9 @@ export class CommandRoutingService implements CommandRouter {
 
     try {
       // タイムアウト設定
-      const timeoutPromise = new Promise<never>((_, reject) => {
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
         setTimeout(() => {
-          reject(new CommandExecutionError('コマンド実行がタイムアウトしました'));
+          reject(new CommandExecutionError('コマンド実行がタイムアウトしました', { specificCode: 'TIMEOUT' } as const));
         }, command.metadata.timeout);
       });
 
@@ -602,7 +605,7 @@ export class CommandRoutingService implements CommandRouter {
     } catch (error) {
       throw error instanceof FrameworkError 
         ? error 
-        : new CommandExecutionError(`コマンド実行エラー: ${error.message}`);
+        : new CommandExecutionError(`コマンド実行エラー: ${this.formatErrorMessage(error)}`, { specificCode: 'EXECUTION_ERROR' } as const);
     }
   }
 
@@ -622,5 +625,12 @@ export class CommandRoutingService implements CommandRouter {
 
   private generateCommandId(): CommandId {
     return createCommandId();
+  }
+
+  /**
+   * エラーから安全にメッセージを取得するヘルパー
+   */
+  private formatErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

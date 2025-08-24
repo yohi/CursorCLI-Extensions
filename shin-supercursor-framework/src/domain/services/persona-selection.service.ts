@@ -3,30 +3,24 @@
  * ビジネスロジックとしてのペルソナ選択アルゴリズム
  */
 
+import { PersonaRepository } from '../repositories/persona.repository.js';
 import {
-  PersonaId,
-  SessionId,
-  DeepReadonly,
-  createTimestamp
+  ExecutionContext
+} from '../types/commands.js';
+import {
+  PersonaId
 } from '../types/index.js';
-
 import {
   AIPersona,
   PersonaType,
   ExpertiseLevel,
-  PersonaContext,
   PersonaSelectionResult,
   PersonaCandidate,
   Trigger,
-  TriggerType,
-  calculatePersonaMatch
+  TriggerType
 } from '../types/personas.js';
 
-import {
-  ExecutionContext
-} from '../types/commands.js';
 
-import { PersonaRepository } from '../repositories/persona.repository.js';
 
 /**
  * ペルソナ選択戦略
@@ -109,16 +103,16 @@ export class PersonaSelectionService {
       const selectedPersona = this.selectBestCandidate(scoredCandidates, selectionConfig);
 
       // 4. フォールバック処理
-      const finalPersona = selectedPersona || await this.getFallbackPersona(selectionConfig);
+      const finalPersona = selectedPersona ?? await this.getFallbackPersona(selectionConfig);
 
       const selectionTime = Date.now() - startTime;
 
       // Find confidence for the actually returned persona
-      const actualPersona = selectedPersona || finalPersona;
+      const actualPersona = selectedPersona ?? finalPersona;
       const actualCandidate = scoredCandidates.find(c => 
         c.persona.id === actualPersona?.id
       );
-      const actualConfidence = actualCandidate?.confidence || 0;
+      const actualConfidence = actualCandidate?.confidence ?? 0;
 
       // Create alternatives list excluding the actually selected persona
       const alternatives = scoredCandidates
@@ -127,7 +121,7 @@ export class PersonaSelectionService {
 
       return {
         success: finalPersona !== null,
-        selectedPersona: actualPersona || undefined,
+        selectedPersona: actualPersona ?? undefined,
         confidence: actualConfidence,
         reasoning: this.generateReasoning(actualPersona, scoredCandidates, selectionConfig),
         alternatives,
@@ -189,7 +183,7 @@ export class PersonaSelectionService {
    */
   private async getCandidatePersonas(
     context: ExecutionContext,
-    config: PersonaSelectionConfig
+    _config: PersonaSelectionConfig
   ): Promise<AIPersona[]> {
     const candidates: AIPersona[] = [];
 
@@ -346,7 +340,7 @@ export class PersonaSelectionService {
 
       const successRate = personaInteractions.filter(i => i.success).length / personaInteractions.length;
       const averageSatisfaction = personaInteractions.reduce((sum, i) => 
-        sum + (i.userSatisfaction || 0), 0) / personaInteractions.length;
+        sum + (i.userSatisfaction ?? 0), 0) / personaInteractions.length;
 
       return (successRate * 0.6) + (averageSatisfaction / 5 * 0.4); // 5点満点を1点満点に正規化
     } catch {
@@ -389,7 +383,7 @@ export class PersonaSelectionService {
   /**
    * 時間要素ボーナスを計算
    */
-  private calculateTimeBonus(persona: AIPersona, context: ExecutionContext): number {
+  private calculateTimeBonus(persona: AIPersona, _context: ExecutionContext): number {
     const currentHour = new Date().getHours();
     
     // 複雑なタスクは集中しやすい時間帯に高スコア
@@ -438,7 +432,7 @@ export class PersonaSelectionService {
 
     // デフォルトの汎用ペルソナを探す
     const allPersonas = await this.personaRepository.findAllActive();
-    return allPersonas.find(p => p.type === PersonaType.DEVELOPER) || allPersonas[0] || null;
+    return allPersonas.find(p => p.type === PersonaType.DEVELOPER) ?? allPersonas[0] ?? null;
   }
 
   /**
@@ -447,7 +441,7 @@ export class PersonaSelectionService {
   private generateReasoning(
     selected: AIPersona | null,
     candidates: PersonaCandidate[],
-    config: PersonaSelectionConfig
+    _config: PersonaSelectionConfig
   ): string {
     if (!selected) {
       return '適切なペルソナが見つかりませんでした。';
@@ -492,9 +486,9 @@ export class PersonaSelectionService {
       return projectTypeTriggers.some(trigger => {
         if (typeof trigger.pattern === 'string') {
           return trigger.pattern.toLowerCase() === projectType.toLowerCase();
-        } else if (trigger.pattern && typeof trigger.pattern.test === 'function') {
+        } else if (trigger.pattern && typeof (trigger.pattern).test === 'function') {
           // RegExpオブジェクトまたはRegExp-likeオブジェクト
-          return trigger.pattern.test(projectType);
+          return (trigger.pattern).test(projectType);
         }
         return false;
       });
@@ -533,21 +527,21 @@ export class PersonaSelectionService {
 
   private getExperienceVerbosityMatch(experience: string, verbosity: import('../types/index.js').VerbosityLevel): number {
     // 経験レベルと冗長性のマッチングロジック
-    const matchMatrix = {
+    const matchMatrix: Record<string, Record<string, number>> = {
       'beginner': { 'verbose': 1, 'normal': 0.8, 'minimal': 0.3 },
       'intermediate': { 'verbose': 0.7, 'normal': 1, 'minimal': 0.6 },
       'advanced': { 'verbose': 0.5, 'normal': 0.8, 'minimal': 1 },
       'expert': { 'verbose': 0.3, 'normal': 0.6, 'minimal': 1 }
     };
 
-    return matchMatrix[experience]?.[verbosity] || 0.5;
+    return matchMatrix[experience]?.[verbosity] ?? 0.5;
   }
 
-  private generatePersonaReasoning(persona: AIPersona, context: ExecutionContext, confidence: number): string {
+  private generatePersonaReasoning(persona: AIPersona, _context: ExecutionContext, confidence: number): string {
     return `信頼度 ${(confidence * 100).toFixed(1)}% - ${persona.type}ペルソナ`;
   }
 
-  private getTriggeredBy(persona: AIPersona, context: ExecutionContext): Trigger[] {
+  private getTriggeredBy(_persona: AIPersona, _context: ExecutionContext): Trigger[] {
     // 実際のトリガー分析ロジック
     return [];
   }

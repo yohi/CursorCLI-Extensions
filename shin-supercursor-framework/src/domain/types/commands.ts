@@ -18,7 +18,6 @@ import {
   DeepReadonly,
   BaseEntity
 } from './base.js';
-
 import { ProjectContext, UserContext } from './context.js';
 
 // ==========================================
@@ -368,6 +367,26 @@ export function isCommandResult(value: unknown): value is CommandResult {
     'output' in value &&
     typeof (value as CommandResult).success === 'boolean'
   );
+}
+
+export function isCommandCategory(value: unknown): value is CommandCategory {
+  return typeof value === 'string' && Object.values(CommandCategory).includes(value as CommandCategory);
+}
+
+export function isCommandPriority(value: unknown): value is CommandPriority {
+  return typeof value === 'string' && Object.values(CommandPriority).includes(value as CommandPriority);
+}
+
+export function isBuildMode(value: unknown): value is BuildMode {
+  return typeof value === 'string' && Object.values(BuildMode).includes(value as BuildMode);
+}
+
+export function isExecutionStatus(value: unknown): value is ExecutionStatus {
+  return typeof value === 'string' && Object.values(ExecutionStatus).includes(value as ExecutionStatus);
+}
+
+export function isAttachmentType(value: unknown): value is AttachmentType {
+  return typeof value === 'string' && Object.values(AttachmentType).includes(value as AttachmentType);
 }
 
 // ==========================================

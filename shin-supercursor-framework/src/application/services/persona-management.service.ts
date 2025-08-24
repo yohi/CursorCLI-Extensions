@@ -6,14 +6,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventBus } from '@nestjs/cqrs';
 
+import { PersonaRepository } from '../../domain/repositories/persona.repository.js';
+import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
+import {
+  ExecutionContext
+} from '../../domain/types/commands.js';
 import {
   PersonaId,
-  SessionId,
-  UserId,
-  createPersonaId,
-  createTimestamp
+  SessionId
 } from '../../domain/types/index.js';
-
 import {
   AIPersona,
   PersonaManager,
@@ -26,16 +27,10 @@ import {
   PersonaFeedback,
   PersonaInteraction,
   PersonaFactory,
-  PersonaSpecification,
   PersonaValidationResult
 } from '../../domain/types/personas.js';
 
-import {
-  ExecutionContext
-} from '../../domain/types/commands.js';
 
-import { PersonaRepository } from '../../domain/repositories/persona.repository.js';
-import { PersonaSelectionService } from '../../domain/services/persona-selection.service.js';
 
 /**
  * ペルソナ管理設定
@@ -103,7 +98,9 @@ export class PersonaManagementService implements PersonaManager {
       return personaContext;
 
     } catch (error) {
-      this.logger.error(`Context analysis failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Context analysis failed: ${errorMessage}`, errorStack);
       throw error;
     }
   }
@@ -128,17 +125,19 @@ export class PersonaManagementService implements PersonaManager {
       }
 
       // 選択イベントを発行
-      await this.publishPersonaSelectedEvent(context, result);
+      this.publishPersonaSelectedEvent(context, result);
 
       return result;
 
     } catch (error) {
-      this.logger.error(`Persona selection failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona selection failed: ${errorMessage}`, errorStack);
       
       return {
         success: false,
         confidence: 0,
-        reasoning: `ペルソナ選択エラー: ${error.message}`,
+        reasoning: `ペルソナ選択エラー: ${error instanceof Error ? error.message : String(error)}`,
         alternatives: [],
         selectionTime: 0
       };
@@ -164,7 +163,7 @@ export class PersonaManagementService implements PersonaManager {
       }
 
       // 活性化前のバリデーション
-      await this.validatePersonaActivation(persona, context);
+      this.validatePersonaActivation(persona, context);
 
       // 既存のアクティブペルソナを非活性化
       await this.deactivateCurrentPersona(context.sessionId);
@@ -193,19 +192,21 @@ export class PersonaManagementService implements PersonaManager {
       };
 
       // 活性化イベントを発行
-      await this.publishPersonaActivatedEvent(context, result);
+      this.publishPersonaActivatedEvent(context, result);
 
       this.logger.log(`Persona activated successfully: ${persona.name} (${activationTime}ms)`);
       return result;
 
     } catch (error) {
-      this.logger.error(`Persona activation failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona activation failed: ${errorMessage}`, errorStack);
 
       return {
         success: false,
         persona: undefined, // エラー時はペルソナなし
         confidence: 0,
-        reasoning: `活性化エラー: ${error.message}`,
+        reasoning: `活性化エラー: ${error instanceof Error ? error.message : String(error)}`,
         activationTime: Date.now() - startTime,
         resources: {
           memory: 0,
@@ -234,13 +235,15 @@ export class PersonaManagementService implements PersonaManager {
       this.activeSessions.delete(sessionId);
 
       // 非活性化イベントを発行
-      await this.publishPersonaDeactivatedEvent(sessionId, sessionInfo.activePersona);
+      this.publishPersonaDeactivatedEvent(sessionId, sessionInfo.activePersona);
 
       this.logger.log(`Persona deactivated for session: ${sessionId}`);
       return true;
 
     } catch (error) {
-      this.logger.error(`Persona deactivation failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona deactivation failed: ${errorMessage}`, errorStack);
       return false;
     }
   }
@@ -283,18 +286,20 @@ export class PersonaManagementService implements PersonaManager {
       };
 
       // 切り替えイベントを発行
-      await this.publishPersonaSwitchedEvent(sessionId, result);
+      this.publishPersonaSwitchedEvent(sessionId, result);
 
       this.logger.log(`Persona switched successfully: ${newPersona.name} (${switchTime}ms)`);
       return result;
 
     } catch (error) {
-      this.logger.error(`Persona switch failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona switch failed: ${errorMessage}`, errorStack);
 
       return {
         success: false,
         newPersona: undefined,
-        reason: `切り替えエラー: ${error.message}`,
+        reason: `切り替えエラー: ${error instanceof Error ? error.message : String(error)}`,
         switchTime: Date.now() - startTime
       };
     }
@@ -331,7 +336,9 @@ export class PersonaManagementService implements PersonaManager {
       this.logger.log(`Persona registered successfully: ${persona.name}`);
 
     } catch (error) {
-      this.logger.error(`Persona registration failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona registration failed: ${errorMessage}`, errorStack);
       throw error;
     }
   }
@@ -357,7 +364,9 @@ export class PersonaManagementService implements PersonaManager {
       return result;
 
     } catch (error) {
-      this.logger.error(`Persona unregistration failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona unregistration failed: ${errorMessage}`, errorStack);
       return false;
     }
   }
@@ -375,7 +384,9 @@ export class PersonaManagementService implements PersonaManager {
       return updatedPersona;
 
     } catch (error) {
-      this.logger.error(`Persona update failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona update failed: ${errorMessage}`, errorStack);
       throw error;
     }
   }
@@ -391,7 +402,9 @@ export class PersonaManagementService implements PersonaManager {
         return await this.personaRepository.findAllActive();
       }
     } catch (error) {
-      this.logger.error(`Failed to list personas: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to list personas: ${errorMessage}`, errorStack);
       return [];
     }
   }
@@ -403,7 +416,9 @@ export class PersonaManagementService implements PersonaManager {
     try {
       return await this.personaRepository.search(query);
     } catch (error) {
-      this.logger.error(`Persona search failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Persona search failed: ${errorMessage}`, errorStack);
       return [];
     }
   }
@@ -428,7 +443,9 @@ export class PersonaManagementService implements PersonaManager {
       this.logger.debug(`Learning completed for interaction: ${interaction.id}`);
 
     } catch (error) {
-      this.logger.error(`Learning failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Learning failed: ${errorMessage}`, errorStack);
     }
   }
 
@@ -443,12 +460,14 @@ export class PersonaManagementService implements PersonaManager {
       await this.personaRepository.saveFeedback(feedback);
 
       // フィードバックイベントを発行
-      await this.publishPersonaFeedbackEvent(feedback);
+      this.publishPersonaFeedbackEvent(feedback);
 
       this.logger.debug(`Feedback provided for persona: ${feedback.personaId}`);
 
     } catch (error) {
-      this.logger.error(`Feedback provision failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Feedback provision failed: ${errorMessage}`, errorStack);
     }
   }
 
@@ -461,7 +480,7 @@ export class PersonaManagementService implements PersonaManager {
     }
   }
 
-  private async validatePersonaActivation(persona: AIPersona, context: ExecutionContext): Promise<void> {
+  private validatePersonaActivation(persona: AIPersona, _context: ExecutionContext): void {
     // 活性化前のバリデーションロジック
     if (!persona.configuration.active) {
       throw new Error(`Persona is not active: ${persona.id}`);
@@ -481,11 +500,11 @@ export class PersonaManagementService implements PersonaManager {
 
     try {
       const interactions = await this.personaRepository.getSessionHistory(context.sessionId);
-      const feedbacks = await this.personaRepository.getUserHistory(context.user.id);
+      const feedbacks = await this.personaRepository.getFeedbackByUserId(context.user.id);
 
       return {
         interactions,
-        feedbacks, // 実際のフィードバックを返す
+        feedbacks,
         adaptations: [] // 適応データ
       };
     } catch {
@@ -495,56 +514,56 @@ export class PersonaManagementService implements PersonaManager {
 
   // イベント発行メソッド
 
-  private async publishPersonaSelectedEvent(
+  private publishPersonaSelectedEvent(
     context: import('../../domain/types/personas.js').PersonaContext,
-    result: PersonaSelectionResult
-  ): Promise<void> {
+    _result: PersonaSelectionResult
+  ): void {
     try {
       // カスタムイベントを発行（実装時にイベントクラスを定義）
       this.logger.debug(`Published persona selected event for session: ${context.sessionId}`);
     } catch (error) {
-      this.logger.error(`Failed to publish persona selected event: ${error.message}`);
+      this.logger.error(`Failed to publish persona selected event: ${String(error)}`);
     }
   }
 
-  private async publishPersonaActivatedEvent(
+  private publishPersonaActivatedEvent(
     context: ExecutionContext,
-    result: PersonaActivationResult
-  ): Promise<void> {
+    _result: PersonaActivationResult
+  ): void {
     try {
       this.logger.debug(`Published persona activated event for session: ${context.sessionId}`);
     } catch (error) {
-      this.logger.error(`Failed to publish persona activated event: ${error.message}`);
+      this.logger.error(`Failed to publish persona activated event: ${String(error)}`);
     }
   }
 
-  private async publishPersonaDeactivatedEvent(
+  private publishPersonaDeactivatedEvent(
     sessionId: SessionId,
-    personaId: PersonaId
-  ): Promise<void> {
+    _personaId: PersonaId
+  ): void {
     try {
       this.logger.debug(`Published persona deactivated event for session: ${sessionId}`);
     } catch (error) {
-      this.logger.error(`Failed to publish persona deactivated event: ${error.message}`);
+      this.logger.error(`Failed to publish persona deactivated event: ${String(error)}`);
     }
   }
 
-  private async publishPersonaSwitchedEvent(
+  private publishPersonaSwitchedEvent(
     sessionId: SessionId,
-    result: PersonaSwitchResult
-  ): Promise<void> {
+    _result: PersonaSwitchResult
+  ): void {
     try {
       this.logger.debug(`Published persona switched event for session: ${sessionId}`);
     } catch (error) {
-      this.logger.error(`Failed to publish persona switched event: ${error.message}`);
+      this.logger.error(`Failed to publish persona switched event: ${String(error)}`);
     }
   }
 
-  private async publishPersonaFeedbackEvent(feedback: PersonaFeedback): Promise<void> {
+  private publishPersonaFeedbackEvent(feedback: PersonaFeedback): void {
     try {
       this.logger.debug(`Published persona feedback event for persona: ${feedback.personaId}`);
     } catch (error) {
-      this.logger.error(`Failed to publish persona feedback event: ${error.message}`);
+      this.logger.error(`Failed to publish persona feedback event: ${String(error)}`);
     }
   }
 }

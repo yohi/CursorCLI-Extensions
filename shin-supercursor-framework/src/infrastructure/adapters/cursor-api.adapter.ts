@@ -3,9 +3,10 @@
  * Framework-2のCursor API統合をアダプターパターンで実装
  */
 
-import { Injectable, Logger } from '@nestjs/common';
 import { spawn, SpawnOptions } from 'child_process';
 import { promises as fsPromises } from 'fs';
+
+import { Injectable, Logger } from '@nestjs/common';
 
 import {
   FrameworkError,
@@ -89,9 +90,9 @@ export class CursorApiAdapter {
 
   constructor(config: Partial<CursorApiConfig> = {}) {
     this.config = {
-      cursorPath: process.env.CURSOR_PATH || 'cursor',
-      timeout: parseInt(process.env.CURSOR_TIMEOUT || '30000'),
-      retryAttempts: parseInt(process.env.CURSOR_RETRY_ATTEMPTS || '3'),
+      cursorPath: process.env.CURSOR_PATH ?? 'cursor',
+      timeout: parseInt(process.env.CURSOR_TIMEOUT ?? '30000'),
+      retryAttempts: parseInt(process.env.CURSOR_RETRY_ATTEMPTS ?? '3'),
       workingDirectory: process.cwd(),
       enableLogging: process.env.CURSOR_ENABLE_LOGGING !== 'false',
       ...config
@@ -111,7 +112,7 @@ export class CursorApiAdapter {
       this.logger.log(`Executing Cursor command: ${command}`);
     }
 
-    const timeout = options.timeout || this.config.timeout;
+    const timeout = options.timeout ?? this.config.timeout;
     const maxRetries = this.config.retryAttempts;
     let lastError: Error | null = null;
 
@@ -151,7 +152,7 @@ export class CursorApiAdapter {
 
     // すべてのリトライが失敗した場合
     const executionTime = Date.now() - startTime;
-    const errorMessage = `Cursor command failed after ${maxRetries + 1} attempts: ${lastError?.message || 'Unknown error'}`;
+    const errorMessage = `Cursor command failed after ${maxRetries + 1} attempts (${executionTime}ms): ${lastError?.message ?? 'Unknown error'}`;
     
     this.logger.error(errorMessage);
     throw new CursorApiError(errorMessage, lastError?.message);
@@ -195,7 +196,7 @@ export class CursorApiAdapter {
     try {
       if (content !== undefined) {
         // ファイルに内容を書き込み
-        await fsPromises.writeFile(filePath, content, { encoding: options.encoding || 'utf8' });
+        await fsPromises.writeFile(filePath, content, { encoding: options.encoding ?? 'utf8' });
       }
       
       // Cursorでファイルを開く
@@ -247,7 +248,7 @@ export class CursorApiAdapter {
       const startTime = Date.now();
       
       const spawnOptions: SpawnOptions = {
-        cwd: options.workingDirectory || this.config.workingDirectory,
+        cwd: options.workingDirectory ?? this.config.workingDirectory,
         env: {
           ...process.env,
           ...options.environment
@@ -279,14 +280,14 @@ export class CursorApiAdapter {
 
       // 出力の収集
       if (child.stdout) {
-        child.stdout.on('data', (data) => {
-          stdout += data.toString(options.encoding || 'utf8');
+        child.stdout.on('data', (data: Buffer) => {
+          stdout += data.toString(options.encoding ?? 'utf8');
         });
       }
 
       if (child.stderr) {
-        child.stderr.on('data', (data) => {
-          stderr += data.toString(options.encoding || 'utf8');
+        child.stderr.on('data', (data: Buffer) => {
+          stderr += data.toString(options.encoding ?? 'utf8');
         });
       }
 
@@ -303,7 +304,7 @@ export class CursorApiAdapter {
       });
 
       // プロセス終了時の処理
-      child.on('close', (code, signal) => {
+      child.on('close', (code, _signal) => {
         clearTimeout(timeoutId);
         if (killTimeoutId) clearTimeout(killTimeoutId);
         
@@ -318,12 +319,12 @@ export class CursorApiAdapter {
         resolve({
           success,
           output: stdout,
-          error: success ? undefined : stderr || `Process exited with code ${code}`,
+          error: success ? undefined : stderr ?? `Process exited with code ${code}`,
           metadata: {
             executionTime,
             tokensUsed: this.estimateTokenUsage(command, stdout),
             model: 'cursor-cli',
-            exitCode: code || 0
+            exitCode: code ?? 0
           }
         });
       });

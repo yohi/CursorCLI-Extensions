@@ -5,16 +5,22 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, Like, In } from 'typeorm';
+import { Repository, FindOptionsWhere, Like, In , Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
+import {
+  PersonaRepository,
+  PersonaRepositoryError,
+  PersonaNotFoundError,
+  PersonaDuplicateError,
+  PersonaSortField,
+  SortOrder
+} from '../../domain/repositories/persona.repository.js';
 import {
   PersonaId,
   SessionId,
   UserId,
-  createPersonaId,
-  createTimestamp
+  createPersonaId
 } from '../../domain/types/index.js';
-
 import {
   AIPersona,
   PersonaType,
@@ -25,20 +31,10 @@ import {
   PersonaFeedback
 } from '../../domain/types/personas.js';
 
-import {
-  PersonaRepository,
-  PersonaRepositoryError,
-  PersonaNotFoundError,
-  PersonaDuplicateError,
-  PersonaQueryOptions,
-  PersonaSortField,
-  SortOrder
-} from '../../domain/repositories/persona.repository.js';
 
 /**
  * ペルソナエンティティ（TypeORM）
  */
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 @Entity('personas')
 @Index(['type', 'active'])
@@ -66,22 +62,22 @@ export class PersonaEntity {
   version: string;
 
   @Column('json')
-  expertise: any[];
+  expertise: unknown[];
 
   @Column('json')
-  capabilities: any[];
+  capabilities: unknown[];
 
   @Column('json')
-  activationTriggers: any[];
+  activationTriggers: unknown[];
 
   @Column('json')
-  responseStyle: any;
+  responseStyle: unknown;
 
   @Column('json')
-  configuration: any;
+  configuration: unknown;
 
   @Column('json')
-  metadata: any;
+  metadata: unknown;
 
   @Column({ default: true })
   active: boolean;
@@ -224,7 +220,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
 
       const entities = await this.personaRepository.find({
         where,
-        take: filter.limit || 50,
+        take: filter.limit ?? 50,
         order: { createdAt: 'DESC' }
       });
 
@@ -275,7 +271,7 @@ export class PersonaRepositoryImpl extends PersonaRepository {
           { description: Like(searchTerm) },
           { displayName: Like(searchTerm) }
         ],
-        take: query.limit || 20,
+        take: query.limit ?? 20,
         order: this.buildOrderOptions(query.sortBy, query.sortOrder)
       });
 
@@ -466,16 +462,18 @@ export class PersonaRepositoryImpl extends PersonaRepository {
   async getStatistics(): Promise<import('../../domain/types/personas.js').PersonaStatistics> {
     try {
       // TODO: 統計情報の実装
-      return {
+      const result: import('../../domain/types/personas.js').PersonaStatistics = {
         totalPersonas: await this.count(),
         activePersonas: await this.count({ active: true }),
         typeDistribution: {},
         averageConfidence: 0.8,
-        lastUpdated: new Date()
-      } as any;
+        lastUpdated: Date.now() as import('../../domain/types/base.js').Timestamp
+      };
+      return result;
     } catch (error) {
       this.logger.error(`Failed to get statistics`, error instanceof Error ? error.stack : error);
-      throw new PersonaRepositoryError(`Failed to get statistics: ${error.message}`, 'getStatistics');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new PersonaRepositoryError(`Failed to get statistics: ${errorMessage}`, 'getStatistics');
     }
   }
 
@@ -568,15 +566,15 @@ export class PersonaRepositoryImpl extends PersonaRepository {
         LIMIT ?
       `;
 
-      const results = await this.personaRepository.query(popularPersonaQuery, [limit]);
+      const results: Array<{ id: string; usage_count: string; average_rating: string }> = await this.personaRepository.query(popularPersonaQuery, [limit]);
       const popularPersonas: { persona: AIPersona; usageCount: number; averageRating: number; }[] = [];
 
       for (const result of results) {
-        const persona = await this.findById(result.id);
+        const persona = await this.findById(result.id as PersonaId);
         if (persona) {
           popularPersonas.push({
             persona,
-            usageCount: parseInt(result.usage_count),
+            usageCount: parseInt(result.usage_count, 10),
             averageRating: parseFloat(result.average_rating) || 0
           });
         }
@@ -589,11 +587,11 @@ export class PersonaRepositoryImpl extends PersonaRepository {
     }
   }
 
-  async getRecommendedPersonas(userId: UserId, limit: number = 5): Promise<readonly AIPersona[]> {
+  async getRecommendedPersonas(_userId: UserId, _limit: number = 5): Promise<readonly AIPersona[]> {
     return await this.findAllActive();
   }
 
-  async findSimilar(personaId: PersonaId, limit: number = 5): Promise<readonly { persona: AIPersona; similarityScore: number; }[]> {
+  async findSimilar(_personaId: PersonaId, _limit: number = 5): Promise<readonly { persona: AIPersona; similarityScore: number; }[]> {
     return [];
   }
 
@@ -667,9 +665,9 @@ export class PersonaRepositoryImpl extends PersonaRepository {
       expertise: entity.expertise,
       capabilities: entity.capabilities,
       activationTriggers: entity.activationTriggers,
-      responseStyle: entity.responseStyle,
-      configuration: entity.configuration,
-      metadata: entity.metadata,
+      responseStyle: entity.responseStyle as import('../../domain/types/personas.js').PersonaResponseStyle,
+      configuration: entity.configuration as import('../../domain/types/personas.js').PersonaConfiguration,
+      metadata: entity.metadata as import('../../domain/types/personas.js').PersonaMetadata,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt
     };
@@ -706,18 +704,15 @@ export class PersonaRepositoryImpl extends PersonaRepository {
     };
   }
 
-  private buildOrderOptions(sortBy?: import('../../domain/types/personas.js').PersonaSortField, sortOrder?: import('../../domain/types/personas.js').SortOrder): any {
-    const order: any = {};
+  private buildOrderOptions(sortBy?: import('../../domain/types/personas.js').PersonaSortField, sortOrder?: import('../../domain/types/personas.js').SortOrder): Record<string, 'ASC' | 'DESC'> {
+    const order: Record<string, 'ASC' | 'DESC'> = {};
     
-    switch (sortBy) {
-      case PersonaSortField.NAME:
-        order.name = sortOrder === SortOrder.DESC ? 'DESC' : 'ASC';
-        break;
-      case PersonaSortField.CREATED_AT:
-        order.createdAt = sortOrder === SortOrder.DESC ? 'DESC' : 'ASC';
-        break;
-      default:
-        order.createdAt = 'DESC';
+    if (sortBy === PersonaSortField.NAME) {
+      order.name = sortOrder === SortOrder.DESC ? 'DESC' : 'ASC';
+    } else if (sortBy === PersonaSortField.CREATED_AT) {
+      order.createdAt = sortOrder === SortOrder.DESC ? 'DESC' : 'ASC';
+    } else {
+      order.createdAt = 'DESC';
     }
     
     return order;

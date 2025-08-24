@@ -50,8 +50,8 @@ export interface IntegrationModuleOptions {
       provide: CursorApiAdapter,
       useFactory: (opts: IntegrationModuleOptions) => new CursorApiAdapter({
         cursorPath: opts.cursorApi?.cursorPath ?? process.env.CURSOR_PATH ?? 'cursor',
-        timeout: opts.cursorApi?.timeout ?? parseInt(process.env.CURSOR_TIMEOUT || '30000', 10),
-        retryAttempts: opts.cursorApi?.retryAttempts ?? parseInt(process.env.CURSOR_RETRY_ATTEMPTS || '3', 10),
+        timeout: opts.cursorApi?.timeout ?? parseInt(process.env.CURSOR_TIMEOUT ?? '30000', 10),
+        retryAttempts: opts.cursorApi?.retryAttempts ?? parseInt(process.env.CURSOR_RETRY_ATTEMPTS ?? '3', 10),
         workingDirectory: process.cwd(),
         enableLogging: opts.cursorApi?.enableLogging ?? (process.env.CURSOR_ENABLE_LOGGING !== 'false'),
       }),
@@ -62,7 +62,7 @@ export interface IntegrationModuleOptions {
       useFactory: (opts: IntegrationModuleOptions) => new FileSystemAdapter({
         allowedPaths: opts.fileSystem?.allowedPaths ?? [process.cwd()],
         deniedPaths: opts.fileSystem?.deniedPaths ?? ['/etc', '/usr', '/bin'],
-        maxFileSize: opts.fileSystem?.maxFileSize ?? 10485760,
+        maxFileSize: opts.fileSystem?.maxFileSize ?? 10_485_760,
         enableWatching: opts.fileSystem?.enableWatching ?? true,
         watchIgnorePatterns: opts.fileSystem?.watchIgnorePatterns ?? ['node_modules', '.git', 'dist', 'build'],
         maxWatchers: opts.fileSystem?.maxWatchers ?? 100,
@@ -88,7 +88,7 @@ export interface IntegrationModuleOptions {
           ]);
           
           return {
-            cursor: cursorHealth.status === 'fulfilled' ? cursorHealth.value : { available: false, error: cursorHealth.reason?.message },
+            cursor: cursorHealth.status === 'fulfilled' ? cursorHealth.value : { available: false, error: (cursorHealth.reason as Error)?.message },
             fileSystem: fileSystemHealth.status === 'fulfilled' ? fileSystemHealth.value : { available: false }
           };
         },
@@ -139,8 +139,8 @@ export class IntegrationModule {
    * 非同期設定でモジュールを構成
    */
   static forRootAsync(options: {
-    useFactory: (...args: any[]) => Promise<IntegrationModuleOptions> | IntegrationModuleOptions;
-    inject?: any[];
+    useFactory: (...args: unknown[]) => Promise<IntegrationModuleOptions> | IntegrationModuleOptions;
+    inject?: unknown[];
   }) {
     return {
       module: IntegrationModule,
@@ -148,7 +148,7 @@ export class IntegrationModule {
         {
           provide: 'INTEGRATION_MODULE_OPTIONS',
           useFactory: options.useFactory,
-          inject: options.inject || []
+          inject: options.inject ?? []
         }
       ]
     };

@@ -265,6 +265,26 @@ export function isNonEmptyArray<T>(value: T[]): value is NonEmptyArray<T> {
   return Array.isArray(value) && value.length > 0;
 }
 
+export function isParameterType(value: unknown): value is ParameterType {
+  return typeof value === 'string' && Object.values(ParameterType).includes(value as ParameterType);
+}
+
+export function isOutputFormat(value: unknown): value is OutputFormat {
+  return typeof value === 'string' && Object.values(OutputFormat).includes(value as OutputFormat);
+}
+
+export function isLogLevel(value: unknown): value is LogLevel {
+  return typeof value === 'string' && Object.values(LogLevel).includes(value as LogLevel);
+}
+
+export function isErrorSeverity(value: unknown): value is ErrorSeverity {
+  return typeof value === 'string' && Object.values(ErrorSeverity).includes(value as ErrorSeverity);
+}
+
+export function isVerbosityLevel(value: unknown): value is VerbosityLevel {
+  return typeof value === 'string' && Object.values(VerbosityLevel).includes(value as VerbosityLevel);
+}
+
 // ==========================================
 // 型ファクトリー関数
 // ==========================================

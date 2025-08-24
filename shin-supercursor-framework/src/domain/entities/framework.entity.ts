@@ -4,6 +4,21 @@
  * Framework-1のインターフェース設計とDDDパターンを適用
  */
 
+
+import { randomUUID } from 'node:crypto';
+
+import {
+  Command,
+  CommandResult,
+  ExecutionContext,
+  CommandRouter,
+  CommandExecutionEngine,
+  ParsedCommand
+} from '../types/commands.js';
+import {
+  UserContext,
+  SessionContext
+} from '../types/context.js';
 import {
   CommandId,
   SessionId,
@@ -20,31 +35,10 @@ import {
   DeepReadonly,
   BaseEntity
 } from '../types/index.js';
-
-import { randomUUID } from 'node:crypto';
-
 import {
-  Command,
-  CommandResult,
-  ExecutionContext,
-  CommandHandler,
-  CommandRouter,
-  CommandExecutionEngine,
-  ParsedCommand
-} from '../types/commands.js';
-
-import {
-  AIPersona,
   PersonaManager,
-  PersonaSelectionResult,
-  PersonaActivationResult
+  PersonaSelectionResult
 } from '../types/personas.js';
-
-import {
-  ProjectContext,
-  UserContext,
-  SessionContext
-} from '../types/context.js';
 
 // ==========================================
 // フレームワーク設定
@@ -250,13 +244,13 @@ export class FrameworkEntity extends BaseEntity {
       this._state = FrameworkState.INITIALIZING;
       
       // 設定の読み込み
-      await this.loadConfiguration();
+      this.loadConfiguration();
       
       // 依存コンポーネントの初期化
       await this.initializeDependencies();
       
       // 検証
-      await this.validateConfiguration();
+      this.validateConfiguration();
       
       this._state = FrameworkState.READY;
       
@@ -380,10 +374,10 @@ export class FrameworkEntity extends BaseEntity {
   // セッション管理
   // ==========================================
 
-  public async createSession(
+  public createSession(
     userId: UserId,
-    userContext: UserContext
-  ): Promise<SessionContext> {
+    _userContext: UserContext
+  ): SessionContext {
     this.ensureReady();
 
     const sessionId = this.generateSessionId();
@@ -486,12 +480,12 @@ export class FrameworkEntity extends BaseEntity {
     };
   }
 
-  public async shutdown(): Promise<void> {
+  public shutdown(): void {
     this._state = FrameworkState.SHUTTING_DOWN;
 
     try {
       // リソースのクリーンアップ
-      await this.cleanup();
+      this.cleanup();
       
       this._state = FrameworkState.SHUTDOWN;
 
@@ -505,12 +499,12 @@ export class FrameworkEntity extends BaseEntity {
   // プライベートメソッド
   // ==========================================
 
-  private async loadConfiguration(): Promise<void> {
+  private loadConfiguration(): void {
     // 設定ファイルから設定を読み込む（実装待ち）
     // この実装では、デフォルト設定とオプションをマージ
     this._configuration = {
       ...this._configuration,
-      logLevel: this.options.logLevel || this._configuration.logLevel,
+      logLevel: this.options.logLevel ?? this._configuration.logLevel,
       enableCaching: this.options.enableCaching ?? this._configuration.enableCaching
     };
   }
@@ -562,7 +556,7 @@ export class FrameworkEntity extends BaseEntity {
     }
   }
 
-  private async validateConfiguration(): Promise<void> {
+  private validateConfiguration(): void {
     if (this._configuration.cacheTimeout < 0) {
       throw new ValidationError('キャッシュタイムアウトは0以上である必要があります');
     }
@@ -574,7 +568,7 @@ export class FrameworkEntity extends BaseEntity {
 
   private createDefaultConfiguration(): FrameworkConfiguration {
     return {
-      logLevel: LogLevel.INFO,
+      logLevel: 'info',
       enableCaching: true,
       cacheTimeout: 300000, // 5分
       maxHistorySize: 1000,
@@ -633,7 +627,7 @@ export class FrameworkEntity extends BaseEntity {
   }
 
   private buildCommand(
-    parsedCommand: any,
+    parsedCommand: ParsedCommand,
     executionContext: ExecutionContext
   ): Command {
     return {
@@ -755,16 +749,18 @@ export class FrameworkEntity extends BaseEntity {
       const event = this._eventHistory[i];
       if (event.type === FrameworkEventType.ERROR_OCCURRED) {
         // Check if the error data is a FrameworkError instance or JSON
+        // eslint-disable-next-line security/detect-object-injection
         const errorData = event.data.error;
         if (errorData instanceof FrameworkError) {
           return errorData;
         }
         // If it's JSON data, try to reconstruct the error (though this is not ideal)
-        if (typeof errorData === 'object' && errorData && 'message' in errorData) {
-          const errorObj = errorData as any;
+        if (typeof errorData === 'object' && errorData !== null && 'message' in errorData) {
+          const errorObj = errorData as Record<string, unknown>;
           // エラータイプに応じて適切なインスタンスを作成
-          const errorMessage = errorObj.message || 'Unknown error';
-          switch (errorObj.type || errorObj.name) {
+          const errorMessage = (errorObj.message as string) || 'Unknown error';
+          const errorType = (errorObj.type as string) || (errorObj.name as string);
+          switch (errorType) {
             case 'ConfigurationError':
               return new ConfigurationError(errorMessage);
             case 'ValidationError':
@@ -792,7 +788,7 @@ export class FrameworkEntity extends BaseEntity {
     return error instanceof Error ? error.message : String(error);
   }
 
-  private async cleanup(): Promise<void> {
+  private cleanup(): void {
     // リソースクリーンアップ（実装待ち）
     this._eventHistory = [];
   }
