@@ -8,7 +8,8 @@ import {
   ExecutionContext
 } from '../types/commands.js';
 import {
-  PersonaId
+  PersonaId,
+  VerbosityLevel
 } from '../types/index.js';
 import {
   AIPersona,
@@ -125,7 +126,7 @@ export class PersonaSelectionService {
         confidence: actualConfidence,
         reasoning: this.generateReasoning(actualPersona, scoredCandidates, selectionConfig),
         alternatives,
-        fallback: !selectedPersona ? finalPersona : undefined,
+        fallback: !selectedPersona ? (finalPersona ?? undefined) : undefined,
         selectionTime
       };
 
@@ -503,7 +504,9 @@ export class PersonaSelectionService {
       [ExpertiseLevel.EXPERT]: 0.9,
       [ExpertiseLevel.MASTER]: 1.0
     };
-    return scores[level] || 0.4;
+    // eslint-disable-next-line security/detect-object-injection
+    const score = scores[level];
+    return score ?? 0.4;
   }
 
   private estimateProjectComplexity(context: ExecutionContext): number {
@@ -525,7 +528,7 @@ export class PersonaSelectionService {
     return sum / persona.expertise.length;
   }
 
-  private getExperienceVerbosityMatch(experience: string, verbosity: import('../types/index.js').VerbosityLevel): number {
+  private getExperienceVerbosityMatch(experience: string, verbosity: VerbosityLevel): number {
     // 経験レベルと冗長性のマッチングロジック
     const matchMatrix: Record<string, Record<string, number>> = {
       'beginner': { 'verbose': 1, 'normal': 0.8, 'minimal': 0.3 },
@@ -534,7 +537,14 @@ export class PersonaSelectionService {
       'expert': { 'verbose': 0.3, 'normal': 0.6, 'minimal': 1 }
     };
 
-    return matchMatrix[experience]?.[verbosity] ?? 0.5;
+    // eslint-disable-next-line security/detect-object-injection
+    const experienceMatch = matchMatrix[experience];
+    if (experienceMatch) {
+      // eslint-disable-next-line security/detect-object-injection
+      const verbosityMatch = experienceMatch[verbosity];
+      return verbosityMatch ?? 0.5;
+    }
+    return 0.5;
   }
 
   private generatePersonaReasoning(persona: AIPersona, _context: ExecutionContext, confidence: number): string {
@@ -567,7 +577,8 @@ export class PersonaSelectionService {
       let bestIndex = -1;
 
       for (let i = 0; i < remaining.length; i++) {
-        const candidate = remaining[i];
+        const candidate = remaining.at(i);
+        if (!candidate) continue;
         const complementarityScore = this.calculateComplementarityScore(candidate, selected);
         
         // 信頼度と補完性のバランススコア

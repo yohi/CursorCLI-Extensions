@@ -18,7 +18,9 @@ import {
   ValidationError,
   CommandExecutionError,
   createCommandId,
-  ParameterType
+  ParameterType,
+  FrameworkError,
+  OutputFormat
 } from '../types/index.js';
 
 
@@ -201,7 +203,7 @@ export class CommandRoutingService implements CommandRouter {
         commandId: createCommandId(),
         success: false,
         output: { data: null },
-        format: 'text',
+        format: OutputFormat.TEXT,
         metadata: {
           executionTime,
           cacheHit: false,
@@ -292,7 +294,7 @@ export class CommandRoutingService implements CommandRouter {
     let escapeNext = false;
 
     for (let i = 0; i < input.length; i++) {
-      const char = input[i];
+      const char = input.charAt(i);
       
       if (escapeNext) {
         current += char;
@@ -342,27 +344,37 @@ export class CommandRoutingService implements CommandRouter {
     options: Record<string, string | boolean>;
   } {
     const args: string[] = [];
-    const options: Record<string, string | boolean> = {};
+    const options: Record<string, string | boolean> = Object.create(null);
 
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
+      const part = parts.at(i);
       if (!part) continue;
       
       if (part.startsWith('--')) {
         // 長いオプション (--option=value または --option value)
-        const [key, ...valueParts] = part.substring(2).split('=');
+        const [rawKey, ...valueParts] = part.substring(2).split('=');
+        const key = this.sanitizeOptionKey(rawKey);
         if (key && valueParts.length > 0) {
-          options[key] = valueParts.join('=');
-        } else if (key && i + 1 < parts.length && parts[i + 1] && !parts[i + 1].startsWith('-')) {
-          options[key] = parts[++i];
+          if (key) { options[key] = valueParts.join('='); }
+        } else if (key && i + 1 < parts.length) {
+          const nextPart = parts.at(i + 1);
+          if (nextPart && !nextPart.startsWith('-')) {
+            options[key] = nextPart;
+            i++;
+          }
         } else if (key) {
           options[key] = true;
         }
       } else if (part.startsWith('-') && part.length > 1) {
         // 短いオプション (-o value または -o)
-        const key = part.substring(1);
-        if (key && i + 1 < parts.length && parts[i + 1] && !parts[i + 1].startsWith('-')) {
-          options[key] = parts[++i];
+        const rawKey = part.substring(1);
+        const key = this.sanitizeOptionKey(rawKey);
+        if (key && i + 1 < parts.length) {
+          const nextPart = parts.at(i + 1);
+          if (nextPart && !nextPart.startsWith('-')) {
+            options[key] = nextPart;
+            i++;
+          }
         } else if (key) {
           options[key] = true;
         }
@@ -440,34 +452,40 @@ export class CommandRoutingService implements CommandRouter {
     const len2 = str2.length;
 
     for (let i = 0; i <= len1; i++) {
-      matrix[i] = [i];
+      matrix.push([i]);
     }
 
-    for (let j = 0; j <= len2; j++) {
-      if (matrix[0]) {
-        matrix[0][j] = j;
+    const firstRow = matrix.at(0);
+    if (firstRow) {
+      for (let j = 0; j <= len2; j++) {
+        // eslint-disable-next-line security/detect-object-injection
+        firstRow[j] = j;
       }
     }
 
     for (let i = 1; i <= len1; i++) {
       for (let j = 1; j <= len2; j++) {
-        const currentRow = matrix[i];
-        const prevRow = matrix[i - 1];
+        const currentRow = matrix.at(i);
+        const prevRow = matrix.at(i - 1);
         
-        if (currentRow && prevRow && str1[i - 1] === str2[j - 1]) {
+        if (currentRow && prevRow && str1.charAt(i - 1) === str2.charAt(j - 1)) {
+          // eslint-disable-next-line security/detect-object-injection
           currentRow[j] = prevRow[j - 1] ?? 0;
         } else if (currentRow && prevRow) {
-          const deletionCost = (prevRow[j] ?? 0) + 1;
-          const insertionCost = (currentRow[j - 1] ?? 0) + 1;
-          const substitutionCost = (prevRow[j - 1] ?? 0) + 1;
-          currentRow[j] = Math.min(deletionCost, insertionCost, substitutionCost);
+          const deletionCost = (prevRow.at(j) ?? 0) + 1;
+          const insertionCost = (currentRow.at(j - 1) ?? 0) + 1;
+          const substitutionCost = (prevRow.at(j - 1) ?? 0) + 1;
+          if (currentRow) {
+            // eslint-disable-next-line security/detect-object-injection
+            currentRow[j] = Math.min(deletionCost, insertionCost, substitutionCost);
+          }
         }
       }
     }
 
     const maxLen = Math.max(len1, len2);
-    const finalRow = matrix[len1];
-    const distance = finalRow ? (finalRow[len2] ?? 0) : 0;
+    const finalRow = matrix.at(len1);
+    const distance = finalRow ? (finalRow.at(len2) ?? 0) : 0;
     return maxLen === 0 ? 1 : 1 - (distance / maxLen);
   }
 
@@ -615,12 +633,12 @@ export class CommandRoutingService implements CommandRouter {
     const lowPriorityCommands = ['log', 'debug', 'info'];
 
     if (highPriorityCommands.includes(parsedCommand.name)) {
-      return 'high';
+      return CommandPriority.HIGH;
     } else if (lowPriorityCommands.includes(parsedCommand.name)) {
-      return 'low';
+      return CommandPriority.LOW;
     }
 
-    return 'normal';
+    return CommandPriority.NORMAL;
   }
 
   private generateCommandId(): CommandId {
@@ -632,5 +650,16 @@ export class CommandRoutingService implements CommandRouter {
    */
   private formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  /**
+   * オプションキーのサニタイズ（プロトタイプ汚染対策）
+   */
+  private sanitizeOptionKey(key: string): string {
+    const k = key.trim();
+    if (!k || /^(?:__proto__|prototype|constructor)$/i.test(k)) {
+      return `invalid_${Date.now()}`;
+    }
+    return k;
   }
 }

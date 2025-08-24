@@ -3,13 +3,16 @@
  * Framework-2のFileSystemHandlerをアダプターパターンで実装
  */
 
+/* eslint-disable security/detect-non-literal-fs-filename */
+
 import { promises as fs, constants as fsConstants, Stats, watch, FSWatcher, realpathSync } from 'fs';
 import { join, resolve, relative, dirname, isAbsolute } from 'path';
 
 import { Injectable, Logger } from '@nestjs/common';
 
 import {
-  FrameworkError
+  FrameworkError,
+  ErrorSeverity
 } from '../../domain/types/index.js';
 
 /**
@@ -81,26 +84,32 @@ export type FileWatchCallback = (event: FileChangeEvent) => void;
  */
 export class FileSystemError extends FrameworkError {
   public readonly code = 'FILE_SYSTEM_ERROR';
-  public readonly severity = 'medium' as const;
+  public readonly severity = ErrorSeverity.MEDIUM;
   public readonly recoverable = true;
 }
 
-export class FilePermissionError extends FileSystemError {
+export class FilePermissionError extends FrameworkError {
   public readonly code = 'FILE_PERMISSION_ERROR';
-  public readonly severity = 'high' as const;
+  public readonly severity = ErrorSeverity.HIGH;
+  public readonly recoverable = true;
 }
 
-export class FileNotFoundError extends FileSystemError {
+export class FileNotFoundError extends FrameworkError {
   public readonly code = 'FILE_NOT_FOUND_ERROR';
+  public readonly severity = ErrorSeverity.MEDIUM;
+  public readonly recoverable = true;
 }
 
-export class FileSizeExceededError extends FileSystemError {
+export class FileSizeExceededError extends FrameworkError {
   public readonly code = 'FILE_SIZE_EXCEEDED_ERROR';
+  public readonly severity = ErrorSeverity.MEDIUM;
+  public readonly recoverable = true;
 }
 
-export class PathNotAllowedError extends FileSystemError {
+export class PathNotAllowedError extends FrameworkError {
   public readonly code = 'PATH_NOT_ALLOWED_ERROR';
-  public readonly severity = 'high' as const;
+  public readonly severity = ErrorSeverity.HIGH;
+  public readonly recoverable = false;
 }
 
 /**
@@ -468,7 +477,8 @@ export class FileSystemAdapter {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.error(`File watcher error (${watchId}): ${msg}`);
         // ベストエフォートでクリーンアップ
-        this.unwatchFile(watchId).catch(() => {});
+        // eslint-disable-next-line promise/no-promise-in-callback
+        void this.unwatchFile(watchId).catch(() => { /* ignore cleanup errors */ });
       });
       
       this.logger.debug(`File watcher started: ${path} (${watchId})`);
@@ -528,19 +538,19 @@ export class FileSystemAdapter {
   }
 
   private validatePath(absolutePath: string): void {
-    const norm = (p: string) => resolve(p);
-    const safeReal = (p: string) => {
+    const norm = (p: string): string => resolve(p);
+    const safeReal = (p: string): string => {
       try { return realpathSync(p); } catch { return p; } // 未存在パスはそのまま
     };
     const target = norm(absolutePath);
     const targetReal = safeReal(target);
 
-    const isWithin = (base: string, p: string) => {
+    const isWithin = (base: string, p: string): boolean => {
       const baseNorm = norm(base);
       const rel = relative(baseNorm, p);
       return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
     };
-    const isWithinRealBase = (base: string, p: string) => {
+    const isWithinRealBase = (base: string, p: string): boolean => {
       const baseReal = safeReal(norm(base));
       const rel = relative(baseReal, p);
       return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));

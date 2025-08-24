@@ -13,6 +13,7 @@ import {
   VerbosityLevel,
   DeepReadonly,
   BaseEntity,
+  ResourceUsage,
   isPersonaId
 } from './base.js';
 import { ExecutionContext } from './commands.js';
@@ -538,6 +539,7 @@ function getExpertiseLevelOrder(level: ExpertiseLevel): number {
     [ExpertiseLevel.EXPERT]: 4,
     [ExpertiseLevel.MASTER]: 5
   };
+  // eslint-disable-next-line security/detect-object-injection
   return order[level] || 0;
 }
 

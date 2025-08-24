@@ -9,16 +9,18 @@ import {
   ParsedCommand
 } from '../../domain/types/commands.js';
 import {
-  CommandId,
-  SessionId,
-  ProjectId,
-  DeepReadonly,
   ProjectType,
   SecurityRating,
   ReliabilityRating,
   MaintainabilityRating,
   PackageManager,
   OperatingSystem
+} from '../../domain/types/context.js';
+import {
+  CommandId,
+  SessionId,
+  ProjectId,
+  DeepReadonly
 } from '../../domain/types/index.js';
 
 /**

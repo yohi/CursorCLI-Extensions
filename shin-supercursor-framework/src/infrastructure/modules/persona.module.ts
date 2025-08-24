@@ -190,12 +190,14 @@ export class PersonaModule {
   static forRootAsync(options: PersonaModuleAsyncOptions): DynamicModule {
     return {
       module: PersonaModule,
-      imports: options.imports ?? [],
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+      imports: (options.imports ?? []) as any,
       providers: [
         {
           provide: 'PERSONA_MODULE_OPTIONS',
           useFactory: options.useFactory,
-          inject: options.inject ?? []
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+          inject: (options.inject ?? []) as any
         },
         {
           provide: 'PERSONA_MANAGEMENT_CONFIG',

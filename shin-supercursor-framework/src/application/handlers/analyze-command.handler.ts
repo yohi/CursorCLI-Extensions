@@ -19,7 +19,6 @@ import {
   CommandCategory,
   isAnalyzeCommand,
   CommandExecutionError,
-  ErrorSeverity,
   OutputFormat
 } from '../../domain/types/index.js';
 
@@ -234,11 +233,11 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
       });
     }
 
-    return {
+    return Promise.resolve({
       valid: errors.length === 0,
       errors,
       warnings
-    };
+    });
   }
 
   /**
@@ -269,7 +268,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
 
       this.logger.log(`Analysis completed in ${executionTime}ms`);
 
-      return {
+      return Promise.resolve({
         commandId: command.id,
         success: true,
         output: {
@@ -293,14 +292,14 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
           endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
           duration: executionTime
         }
-      };
+      });
 
     } catch (error: unknown) {
       const normalized = this.normalizeError(error);
       const executionTime = Date.now() - startTime;
       this.logger.error(`Analysis failed: ${normalized.message}`, normalized.stack);
 
-      return {
+      return Promise.resolve({
         commandId: command.id,
         success: false,
         output: { data: null },
@@ -321,7 +320,7 @@ export class AnalyzeCommandHandler implements BaseCommandHandler {
           endTime: Date.now() as import('../../domain/types/base.js').Timestamp,
           duration: executionTime
         }
-      };
+      });
     }
   }
 

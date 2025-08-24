@@ -17,6 +17,18 @@ import { CommandRoutingService } from '../../domain/services/command-routing.ser
 // import { BuildCommandHandler } from '../../application/handlers/build-command.handler.js';
 // import { DesignCommandHandler } from '../../application/handlers/design-command.handler.js';
 
+
+
+/**
+ * モジュールプロバイダー型
+ */
+interface ModuleProvider {
+  provide: string;
+  useValue?: unknown;
+  useFactory?: (...args: unknown[]) => unknown;
+  inject?: unknown[];
+}
+
 /**
  * コマンドモジュール設定
  */
@@ -59,9 +71,9 @@ export interface CommandModuleOptions {
       useFactory: (
         routingService: CommandRoutingService,
         analyzeHandler: AnalyzeCommandHandler
-      ) => {
+      ): CommandRoutingService => {
         // ハンドラーを登録
-        routingService.registerHandler(analyzeHandler);
+        void routingService.registerHandler(analyzeHandler);
         
         return routingService;
       },
@@ -81,7 +93,7 @@ export class CommandModule {
   /**
    * 動的設定でモジュールを構成
    */
-  static forRoot(options: CommandModuleOptions = {}) {
+  static forRoot(options: CommandModuleOptions = {}): { module: typeof CommandModule; providers: ModuleProvider[] } {
     return {
       module: CommandModule,
       providers: [
@@ -91,13 +103,16 @@ export class CommandModule {
         },
         {
           provide: 'COMMAND_ROUTING_CONFIG',
-          useFactory: (opts: CommandModuleOptions) => ({
+          useFactory: (...args: unknown[]): Record<string, unknown> => {
+            const opts = args[0] as CommandModuleOptions;
+            return {
             enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
             enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
             enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
             defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT ?? '30000', 10),
             maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS ?? '10', 10),
-          }),
+          };
+          },
           inject: ['COMMAND_MODULE_OPTIONS'],
         }
       ]
@@ -110,7 +125,7 @@ export class CommandModule {
   static forRootAsync(options: {
     useFactory: (...args: unknown[]) => Promise<CommandModuleOptions> | CommandModuleOptions;
     inject?: (string | symbol)[];
-  }) {
+  }): { module: typeof CommandModule; providers: ModuleProvider[] } {
     return {
       module: CommandModule,
       providers: [
@@ -121,13 +136,16 @@ export class CommandModule {
         },
         {
           provide: 'COMMAND_ROUTING_CONFIG',
-          useFactory: async (opts: CommandModuleOptions) => ({
+          useFactory: (...args: unknown[]): Record<string, unknown> => {
+            const opts = args[0] as CommandModuleOptions;
+            return {
             enableValidation: opts.enableValidation ?? (process.env.COMMAND_ENABLE_VALIDATION !== 'false'),
             enableCaching: opts.enableCaching ?? (process.env.COMMAND_ENABLE_CACHING !== 'false'),
             enableMetrics: opts.enableMetrics ?? (process.env.COMMAND_ENABLE_METRICS !== 'false'),
             defaultTimeout: opts.defaultTimeout ?? parseInt(process.env.COMMAND_DEFAULT_TIMEOUT ?? '30000', 10),
             maxConcurrentCommands: opts.maxConcurrentCommands ?? parseInt(process.env.MAX_CONCURRENT_COMMANDS ?? '10', 10),
-          }),
+          };
+          },
           inject: ['COMMAND_MODULE_OPTIONS'],
         }
       ]

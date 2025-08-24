@@ -7,7 +7,7 @@ import {
   CommandId,
   SessionId,
   PersonaId,
-  UserId,
+
   Timestamp,
   OutputFormat,
   ParameterType,
@@ -399,11 +399,17 @@ export function createExecutionContext(
   user: UserContext,
   project: ProjectContext
 ): ExecutionContext {
-  // Create a safe copy of process.env with proper typing
-  const envVariables: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    envVariables[key] = value;
-  }
+  // Create a safe copy of process.env with proper typing and prototype pollution protection
+  const envVariables: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(process.env)
+      .filter(([key]) => {
+        // Filter out dangerous keys to prevent prototype pollution
+        const dangerousKeys = /^(?:__proto__|prototype|constructor)$/i;
+        return !dangerousKeys.test(key);
+      })
+      // Optional: restrict to public environment variables only
+      .filter(([key]) => key.startsWith('SUPERCURSOR') || key.startsWith('NODE_') || key.startsWith('NPM_'))
+  );
   
   return {
     sessionId,
